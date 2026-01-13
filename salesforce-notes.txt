@@ -1,0 +1,419 @@
+Link - https://orgfarm-d4f01930d3-dev-ed.develop.my.salesforce.com
+Username - jayantadam.jda987@agentforce.com
+InsideMySandbox@512196
+=================================================================INTERVIEW QUESTIONS=========================================================================================================================
+1. Profiles vs. Permission Sets (Common Interview Question)
+
+Feature         Profile                     Permission Set
+Purpose         Base permissions            Additional permissions
+Assignedto      1 peruser                   Multiple per user
+Flexibility     Less flexibleVery           flexible
+
+2. Can we delete user in salesforce org
+either you can deactive the user else freeze the user
+
+👉 Freeze = temporary login block
+👉 Deactivate = permanent block + frees license
+
+                          Deactivate User                                          Freeze user
+Login -                User cannot log in.                                  User cannot log in anymore.                        
+Active                 User is marked Inactive                              Their user record stays Active = true                                         
+Scheduled jobs         Scheduled jobs fails                                 Scheduled jobs runs
+License                The user’s license becomes available for reuse       The user’s license becomes unavailable for reuse         
+Record ownership       Stays the same                                       Not Stays the same     
+
+3. PROFILE vs ROLE — Simple Definition
+
+Profile = What a user can do (permissions)
+Role = What data a user can see (data visibility)
+
+CRUD                         A Profile defines permissions like Create, Read, Edit, Delete,          While a Role defines data visibility.
+mandatory                    A Profile is mandatory;                                                 a Role is optional.
+How many per user?           A user can have only one Profile,                                       but may have zero or one Role.
+Controls Field‑Level Security?  Yes                                                                      No
+Controls Record Access?         No                                                                      Yes
+Part of Sharing Model?          No                                                                      Yes
+Hierarchy?                      No hierarchy                                                         Has hierarchy (manager → subordinate data visibility)
+Login Restrictions              Profiles affect login restrictions and app/tab access;                      Roles do not.
+Sharing Model                   Roles participate in record-sharing hierarchy;                              Profiles do not.
+
+
+=========================================================================================================================================================================================
+Profile view change video 8 - 1.25 min 
+  HOME -> User Management Settings -> Enhanced Profile User Interface -> enable it ===> because of this step you can configure easily below steps
+
+Field‑Level permissions (video 8 - 1.48min)
+  uncheck below permission in System Permissions before setting the field-level permission if it is already selected in your profile
+Home -> profile -> your custom profile -> System Permissions -> Edit Read Only Fields -> uncheck   
+
+If user is not able to see the developer console how can he get it (video 8 - 1.57min)
+    Home -> profile -> your custom profile -> System Permissions -> View All Data -> checkbox should checked -> you will get developer console
+
+Inside developer console if user wants to remove apex control in developer console  (video 8 - 1.59min)
+   Home -> profile -> your custom profile -> System Permissions -> Author Apex -> checkbox should not checked -> you will not get apex control in developer console
+
+
+==========================================================================================================================================================================================
+
+
+Data types
+
+Text: Stores alphanumeric characters up to a specified length.
+Number: Stores numeric values, can include decimals.
+Currency: Stores monetary values with currency symbol.
+Date: Stores calendar dates without time.
+Date/Time: Stores both date and time values.
+Checkbox: Boolean field for true/false values.
+Picklist(dropdown):
+  Stores a single value chosen from a predefined list of options. Useful for enforcing data consistency (e.g., Status = Open, Closed, Pending).
+  Supports restricted (only predefined values allowed) and unrestricted (users can add new values) modes. Can be dependent on another picklist for dynamic filtering.
+Multi-Select Picklist:
+  Allows users to select multiple values from a predefined list. Useful for scenarios where more than one option applies (e.g., Skills = Java, Salesforce, Angular).
+  Values are stored as a semicolon-separated string. Cannot be used in standard reports for filtering easily and has limitations in formulas and automation 
+  compared to single picklists.
+Master-Detail Relationship:
+  Creates a tight parent-child relationship between two objects where the child (detail) record is dependent on the parent (master) record. The parent controls record
+  ownership, sharing, and deletion (if the master is deleted, the detail is also deleted). It supports roll-up summary fields on the master object to aggregate data 
+  from child recordsFormula: Calculates values dynamically based on other fields.
+
+Email: Stores email addresses.
+Phone: Stores phone numbers.
+URL: Stores website addresses.
+Lookup Relationship: Links to another record in Salesforce.
+Auto Number: Generates a unique sequential number automatically.
+Long Text Area: Stores large blocks of text (up to 131,072 characters).
+Rich Text Area: Stores formatted text with images and links.
+==========================================================================================================================================================================================
+Controlling field can be picklist and checkbox (holds Boolean values) 
+Dependent field can be only picklist
+==========================================================================================================================================================================================
+Master-Detail Relationship => If we want to create for already present records
+
+option 1 - We have to delete existing records
+option 2 - We have to add first lookup fields then add value to the field then change to lookup to master detail field 
+==========================================================================================================================================================================================
+✅ 1. Lookup Relationship
+  Purpose: Links two objects loosely (child can exist without parent).
+  Key Features:
+  Optional relationship; child record can have a null parent.
+  No roll-up summary fields.
+  Ownership and sharing are independent.
+Use Case: When you need a flexible link between objects (e.g., Contact linked to Account but can exist independently).
+✅ 2. Picklist
+  Purpose: Field type that stores a single value from a predefined list.
+  Key Features:
+  Used for categorization (e.g., Status = Open, Closed).
+  No object relationship; purely a field-level control.
+  Supports dependent picklists for dynamic filtering.
+Use Case: When you need controlled values for a field, not linking objects.
+✅ 3. Master-Detail Relationship
+  Purpose: Creates a strong (tightly)  parent-child relationship between two objects. we can add to the record once added cant update it that field
+  Key Features:
+  Child record cannot exist without parent.
+  Parent controls ownership, sharing, and deletion.
+  Supports roll-up summary fields on the master object.
+
+==========================================================================================================================================================================================
+Lighting mode 
+  We can search object with label only
+
+In classic mode
+  we can search object with label and API name
+==========================================================================================================================================================================================
+✅ 1. Lookup Relationship
+  Description: A loose association between two objects.
+  Key Points:
+  Child can exist without a parent.
+  No cascade delete.
+  No roll-up summary fields.
+  Example: Contact linked to Account (but can exist independently).
+
+✅ 2. Master-Detail Relationship
+  Description: A strong parent-child relationship.
+  Key Points:
+  Child record cannot exist without parent.
+  Parent controls ownership, sharing, and deletion.
+  Supports roll-up summary fields on the master.
+  Example: Invoice Line Items tied to Invoice.
+
+✅ 3. Many-to-Many Relationship
+  Description: Achieved using a junction object with two master-detail relationships. we can reduce duplicate records with help of this
+  Key Points:
+  Allows linking multiple records from two objects.
+  Example: Students and Courses.
+
+Delete Behavior
+junction records can delete from both the parents Student and Events
+    Because the junction object uses Master-Detail relationships, its records are dependent on both parents.
+    If either parent record is deleted, all related junction records are automatically deleted (cascade delete).
+    The other parent remains intact, but loses the link because the junction record is gone.
+
+Example :- lets assume we have 2 parents Student and Event object and junction object (Student event info)
+
+      1. If John (Student) is deleted:
+        All his related junction records (registrations) are deleted.
+        Events remain intact.
+
+      2. If Salesforce Workshop (Event) is deleted:
+         All junction records for that event are deleted.
+         Students remain intact.
+
+Security control :- can have first have first parernt object (in this cases student object bacuase we have event lookup)
+
+✅ 4. Hierarchical Relationship
+  Description: Special lookup relationship available only on User object.
+  Key Points:
+  Used to create hierarchy among users (e.g., Manager → Employee).
+
+✅ 5. External Lookup & Indirect Lookup
+  Description: Used to link external objects (from external systems) to Salesforce objects.
+  Key Points:
+  External Lookup links external object to standard/custom object.
+  Indirect Lookup links external object to Salesforce object using an external ID.
+
+==========================================================================================================================================================================================
+why if Account record deleted then contact and oppportunites deleting?
+
+The relationship between Account → Opportunity (and some other standard objects) appears as a Lookup relationship in the schema.
+
+Salesforce has something called implicit cascade delete for certain standard objects(contact).
+
+For Account → Contact, the platform automatically cascades the delete:
+
+    From the UI, it shows a Lookup relationship for Contact, but in the backend, it works like a Master-Detail relationship because there is
+    a standard Boolean field called CascadeDelete, and its default value is true.
+
+For Account → Opportunity, Lookups don’t auto-delete:
+        Normally, deleting an Account does NOT auto-delete Opportunities
+        But they can be deleted if:
+        You choose “Delete Account and Related Records”
+        A Flow or Apex Trigger is configured
+        Cascade Delete is enabled in Account Settings
+
+==========================================================================================================================================================================================
+What is a Roll-Up Summary Field? (I have created in account object) 
+A special field type on the master (parent) object that aggregates data from its detail (child) records and it show read only mode.
+
+On Account, you can create a Roll-Up Summary field to:
+Count the number of Contacts.
+Sum the Opportunity Amounts.
+Find the latest Opportunity Close Date.
+
+==========================================================================================================================================================================================
+How many master detail relationship can create in one object ==> 2 
+How many lookup relationship can create in one object ==> No fixed limit*
+Combined (lookup + master-detail)40 (default), up to 50 (max)
+==========================================================================================================================================================================================
+
+search  in home of setup ->
+Schema Builder (Setup=>Home=>Quick find => Schema Builder) - Salesforce Schema Builder is a visual, drag-and-drop tool that lets 
+administrators and developers design, visualize,and manage the data model (objects, fields, and relationships) in their Salesforce org through a graphical interface,
+making it easier to understand complex data structures and build new custom elements without writing code.
+
+abs ==> you can get new tab with objects
+
+
+lookup relationship - create a relationship to connects two objects loosely, allowing a child record to point to a parent record
+ (like an Account to a Contact, or a custom object to a User) for data sharing, but the child can exist independently.
+ it's defined on the child object by creating a new "Lookup Relationship" field, linking to the parent object, enabling easy data association without strict dependency or automatic deletion (unlike Master-Detail). 
+
+Key Characteristics:
+Loose Coupling: Child records aren't deleted if the parent is deleted (unless configured otherwise).
+Optional: The lookup field on the child record doesn't have to be filled, allowing the child to exist without a parent.
+One-to-Many: Typically links many child records to one parent record (e.g., many Contacts to one Account).
+No Roll-Up Summaries: Cannot use Roll-Up Summary fields, which are a Master-Detail feature.
+Creation: Created on the child object by selecting "Lookup Relationship" as the field type and choosing the parent object. 
+==========================================================================================================================================================================================
+Day 6 video after 1:10
+while creating Lighting pages we have multiple options to add the standard components in that heightlight panel also called compact layout
+
+1:14
+FlexiPage - In Salesforce, a FlexiPage is the technical name for a Lightning Page. It’s a metadata component that defines the layout and components of a page
+in the Lightning Experience or Salesforce Mobile App.
+==> go to any page open record and click on gear icon then click on edit page FlexiPage will come
+
+Lightning App Builder - we can check all the pages which we have created
+      The Lightning App Builder provides an easy to use graphical interface for creating custom Lightning pages for Salesforce Lightning Experience and mobile app.
+      Lightning pages are built using Lightning components—compact, configurable, and reusable elements that you can drag and drop into regions of the page in 
+      the Lightning App Builder.
+==========================================================================================================================================================================================
+Day 6 video after 6:30 sec
+What Is a Page Layout in Salesforce?
+A Page Layout in Salesforce controls how a record detail page looks and what fields, sections, buttons, and related lists appear to the user.
+Think of it as the user interface design for record pages.
+
+pagelayout mostly create for profile each profile can have different layout
+
+Buttons ==> only for classic 
+if you want add button  in Lighting mode then use - salesforce mobile nad Lightning Experience Actions & Quick Actions
+==========================================================================================================================================================================================
+Day 6 video after 1:01 min
+What is pages?
+it is components management A Page is essentially the user interface for viewing, editing, or creating records, dashboards, or apps.
+It determines what components, fields, and actions are visible.and interacted with.
+✅ Types of Pages (in simple words):
+
+Page Layout
+    Defines the arrangement of fields, sections, buttons, and related lists on a record detail page.
+    Example: How an Account record looks when you open it.
+ 
+
+Lightning Pages
+    1.Home Page
+        The landing page for users when they log in.
+        Can show dashboards, tasks, and custom components
+  
+    2.App Page
+        An App Page is a custom page built using Lightning App Builder.
+        A custom page for a specific app, combining multiple components.
+    Example: A Sales app page with pipeline charts and quick links.
+
+    3.Lightning Record Page
+        A customizable page in Lightning Experience using Lightning App Builder.
+        You can add components like charts, related lists, and custom widgets.
+       example Highlights Panel,tabs (Details, Related),Activities,Related Lists.
+
+Classic mode page
+      Visualforce Page
+          clasic mode will open visualforce page 
+          A page built using Visualforce markup for custom UI.
+          Example: A custom form or integration screen.
+
+==========================================================================================================================================================================================
+Lightning App Builder – Component Types (Day 6 video after 1:08 min)
+
+1️⃣ Standard Components (Salesforce‑built)
+   These come out of the box with Salesforce.
+     Examples -  Tabs,Dashboard,List View,Flow,Related Lists,Highlights Panel,Activities,Record Detail,Related Record,Path
+2️⃣ Custom Components (LWC / Aura)
+    These are components created by developers.
+      Types include:
+      Lightning Web Components (LWC)
+      Aura Components 
+3️⃣ Managed Package Components (AppExchange Apps)
+      These come from installed packages.
+      Examples - Salesforce CPQ components,ServiceMax, Conga, Nintex, etc.
+4️⃣ Utility Bar Components
+    These are special components added only to the Utility Bar in Lightning apps.
+    Examples:Notes,History, Recent Items,Flows
+==========================================================================================================================================================================================
+Compact Layout (Day 6 video after 1:34 min)
+A Compact Layout controls the fields shown in the Highlights Panel at the top of a record page in Lightning Experience and Salesforce Mobile.
+It displays key fields so users can quickly see the most important information without scrolling.
+==========================================================================================================================================================================================
+What is profile in salesforce - video 8 - 9.40 seconds
+
+          prfile view change video 8 - 1.25 min 
+          HOME -> User Management Settings -> Enhanced Profile User Interface -> enable it 
+          using above thing we can do profile change easily
+
+profile is an object 
+standard prfile can't delete
+
+we can create profile from taking clone from standard profile
+one user can have only one profile
+
+In Salesforce, a Profile is a fundamental security and access control component. It defines what a user can do in the Salesforce org.
+1. Object Permissions
+Determines what actions a user can perform on objects: Create,Read,Edit,Delete,View All,Modify All
+Example: A Sales Rep may edit Opportunities but not modify Users.
+
+2. Field-Level Security (FLS)
+Specifies which fields a user can: See,Edit
+Example: Salary field may be hidden for non-HR users.
+
+3. User Permissions
+Allows specific capabilities like: API Enabled,View Setup,Run Reports,Manage Dashboards
+
+4. Tab Settings
+Controls whether a tab is: Default On, Default Off,Hidden
+
+5. Apps & Page Layout Assignments
+Decides which: Apps users can access, Page layouts they see
+
+6. Login Controls
+Manages:Login IP ranges,Login hours
+==========================================================================================================================================================================================
+Login Access Policies video 8 - 12.25 seconds 
+Login Access Policies in Salesforce are organization‑wide settings that control who can log in as whom and under what circumstances.
+They allow users to grant temporary access to Salesforce Support or internal administrators for troubleshooting.
+
+==========================================================================================================================================================================================
+Session settings video 8 - 21.06 seconds 
+Force relogin after Login-As-User - it should uncheck by default so that when you do login it will not logout from admin
+session timeout - we selct hours
+==========================================================================================================================================================================================
+prfile view change video 8 - 1.25 min 
+HOME -> User Management Settings -> Enhanced Profile User Interface -> enable it 
+==========================================================================================================================================================================================
+Field‑Level permissions (video 8 - 1.48min)
+uncheck below permission in System Permissions before setting the field-level permission if it is already selected in your profile
+Home -> profile -> your custom profile -> System Permissions -> Edit Read Only Fields -> uncheck
+==========================================================================================================================================================================================
+What Are Permission Sets in Salesforce?
+    A Permission Set is a collection of settings and permissions that give users additional access on top of their Profile.
+    Think of it as:
+    👉 Profile = Base access
+    👉 Permission Set = Extra access
+    You use Permission Sets when you want to give someone more permissions without changing their profile.
+How Many Permission Sets Can a User Have?
+        A user can have:
+        👉 One Profile
+        👉 Many Permission Sets (no strict limit)
+
+  🏆 What Permission Sets Can Control
+         ✔Object permissions,(Create, Read, Edit, Delete),✔ Field‑level security,(Make fields visible/editable),✔ App permissions
+      (Access to apps, tabs, features),✔ System permissions,(API Enabled, View Setup, Modify All Data, etc.),✔ User permissions,(Manage Reports, Run Flow, etc.)
+        ✔Record types,✔ Apex class access,✔ VF page access,✔ Connected apps
+
+Permission Sets vs Permission Set Groups
+    Permission Set Groups allow you to combine multiple permission sets into one bundle.
+You use them when:
+    You have many permission sets
+    You want to assign them together efficiently
+    You want to remove overlapping permissions using Muting        
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+====================================================================================================================================================================================================================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+==========================================================================================================================================================================================
+
