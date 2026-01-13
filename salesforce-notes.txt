@@ -53,6 +53,67 @@ Inside developer console if user wants to remove apex control in developer conso
    Home -> profile -> your custom profile -> System Permissions -> Author Apex -> checkbox should not checked -> you will not get apex control in developer console
 
 
+Salesforce Security Model (video 9 - 55.54 seconds)
+            Salesforce uses a layered security model to control data access at different levels:
+
+            *   Organization-Wide Defaults (OWD) (sharing setting in setup): Baseline access (Private, Public Read Only, Public Read/Write).
+            *   Role Hierarchy :  Users higher in hierarchy inherit access to subordinates’ records.
+            *   Sharing Rules:  (if object has private OWD then you get sharing rules, setup => sharing setting => object name Sharing Rules) 
+                                Open up access based on criteria or ownership.
+            *   Manual Sharing: Record owner shares specific records.
+            *   Teams: Account, Opportunity, Case teams for collaborative access.
+            *   Apex Managed Sharing: Programmatic sharing for custom logic.
+
+            1.  Object-Level Security (CRUD)  
+                Controls access to entire objects like Account, Contact, Opportunity.  
+                Managed through Profiles and Permission Sets.  
+                Example: A user may have Read access to Accounts but no Delete access.
+
+            2.  Field-Level Security (FLS)  
+                Controls visibility and editability of individual fields within an object.  
+                Managed through Profiles and Permission Sets.  
+                Example: A user can view Account Name but not Revenue field.
+
+            3.  Record-Level Security  
+                Controls which records within an object a user can access.  
+                Components:
+
+
+            Additional Security Features  
+            Login & Session Security: IP restrictions, login hours, MFA.  
+            Data Encryption: Shield Platform Encryption for sensitive data.  
+            Auditing & Monitoring: Field history tracking, Setup Audit Trail, Event Monitoring.  
+            Record Types & Page Layouts: Control UI and data entry experience.
+
+            Hierarchy of Access  
+            Profiles and Permission Sets → Field-Level Security → OWD → Role Hierarchy → Sharing Rules → Manual Sharing.
+
+            Example  
+            OWD for Account = Private → Users see only their own Accounts.  
+            Role Hierarchy → Sales Manager sees team’s Accounts.  
+            Sharing Rule → Share Accounts in “Enterprise” segment with Marketing.  
+            Field-Level Security → Hide Revenue field from Marketing users.
+
+can we assign sharing rule the user (video 9 - 01.00 min)
+    No, you cannot assign a Sharing Rule directly to an individual user in Salesforce
+      Sharing Rules in Salesforce are designed to open up access for groups of users, not for individual users.
+      They work based on:Roles,Roles and Subordinates,Public Groups,Territories,Queues,
+     
+     
+Types of sharing (video 9 - 01.01 min)
+  1. owner base sharing 2. criteria base sharing
+
+Public Groups in Salesforce (video 9 - 01.01 min)
+  A Public Group is a collection of users, roles, and other groups that can be used to simplify sharing and access management. 
+  instead of creating multiple sharing rules for individual users, you can create a Public Group and use it in sharing rules, folder access, and other features
+
+Is permissoin set override the profile permissions
+        No, Permission Sets do NOT override Profiles in Salesforce.
+      Here’s the rule:
+      Profiles set the baseline permissions for a user (object-level, field-level, app-level).
+      Permission Sets can add extra permissions on top of what the Profile provides.
+      Permission Sets cannot remove or reduce permissions granted by a Profile.
+
 ==========================================================================================================================================================================================
 
 
@@ -201,7 +262,7 @@ Find the latest Opportunity Close Date.
 
 ==========================================================================================================================================================================================
 How many master detail relationship can create in one object ==> 2 
-How many lookup relationship can create in one object ==> No fixed limit*
+How many lookup relationship can create in one object ==> No fixed limit
 Combined (lookup + master-detail)40 (default), up to 50 (max)
 ==========================================================================================================================================================================================
 
@@ -351,6 +412,11 @@ uncheck below permission in System Permissions before setting the field-level pe
 Home -> profile -> your custom profile -> System Permissions -> Edit Read Only Fields -> uncheck
 ==========================================================================================================================================================================================
 What Are Permission Sets in Salesforce?
+
+    created in free org - Contact Permission set, Decrpypt permission set, Delete account permission,Case permission set
+
+    assigned permission set can be checked thourgh users, each user can have multiple permission sets
+
     A Permission Set is a collection of settings and permissions that give users additional access on top of their Profile.
     Think of it as:
     👉 Profile = Base access
@@ -373,8 +439,120 @@ You use them when:
     You want to assign them together efficiently
     You want to remove overlapping permissions using Muting        
 ==========================================================================================================================================================================================
+Rename Tabs and Labels (video 9) 12.55 seconds
+
+ What is a Permission Set Group? (video 9) 21.34 seconds
+
+A Permission Set Group bundles multiple Permission Sets together.
+   You can assign the group to a user instead of assigning multiple individual permission sets.
+   It supports Muting Permissions, which allows you to remove specific permissions from the group without editing the original permission sets.
+
+Muting Permission Set (video 9) 36.28 seconds
+     A Muting Permission Set is linked to a Permission Set Group.
+     It allows you to mute (disable) specific permissions from the group without changing the original permission sets.
+     Muting only removes permissions that come from Permission Sets inside that specific PSG(Permission Set Group).
+    It does not mute permissions coming from the Profile, other Permission Sets, or other PSGs.
+    Also, muting cannot grant permissions, it will only remove them.
+    Example: If a group includes “Delete” permission but you want to restrict it for certain users, you can mute “Delete” in the muting permission set.
 ==========================================================================================================================================================================================
+Record Level Security (RLS)  (video 9) 40.02 seconds
+in Salesforce controls which individual records a user can see or edit within an object. Even if a user has 
+object-level permissions (like Read/Create/Edit/Delete), RLS determines access to specific records.
+
+Sharing Settings also called OWD below is the path
+setup -> Home -> Sharing Settings
+
+ ✅ Components of Record Level Security 
+        1.  Organization-Wide Defaults (OWD)
+              Sets the baseline access for all users on each object (e.g., Private, Public Read Only, Public Read/Write).
+              Example: If Contacts are Private, users only see records they own (or those shared with them).
+        2.  Role Hierarchy
+              Users higher in the hierarchy inherit access to records owned by users below them.
+              Example: A Sales Manager can see records owned by their team.
+        3.  Sharing Rules
+              Used to open up access beyond OWD.
+              Types:
+                  Owner-based: Share records owned by certain roles/groups.
+                  Criteria-based: Share records meeting certain field criteria.
+
+        4.  Manual Sharing
+              Record owner or admin can share a specific record with another user.
+        5.  Teams
+              Account Teams, Opportunity Teams, Case Teams allow sharing related records with team members.
+        6.  Apex Managed Sharing
+
+
+What is OWD (video 9 53.50 seconds) 
+  (IMP)it is 2 steps process first we need to change owd type in Sharing Settings then remove the the view all, modify all permission in profile 
+      OWD (Organization-Wide Defaults) in Salesforce is the baseline level of access that all users have to records in your organization for each object.
+      It’s part of Record-Level Security and determines how restrictive or open your data is by default.
+
+================================================================================Sandbox configureed==================================================================================================================================
+Key Permissions That Cause issue, below permission should be false
+
+      View All (object-level): Grants read access to all records of that object.
+      Modify All (object-level): Grants full access to all records of that object.
+      View All Data (system-level): Grants read access to all records in the org.
+      Modify All Data (system-level): Grants full access to all records in the org.
+    important Note :- if profile has any permission like read write, we cant override with below things
+
+OWD config
+  setup ==> edit==> go to any object ==> change Default Internal Access to ==> private/public read only/ public read/write
+
+Sharing Rules
+    1. owner base sharing 
+        open Sharing Settings (OWD)
+                1.college object updated with private or  Public Read Only  -> once you update the object you can get sharing rule of that object(college sharing rule)
+                2.public group created / assign role wise - User Public Group ==> added admin user
+                3.Sharing rule created - College Sharing Rule ==>  owned by members of group ==> User Public Group==>  Share with ==> other user which	Role = COO
+                  ==> Access Level = Read/Write
+    2.criteria base sharing
+        Criteria-based sharing rules only work on custom objects and standard objects that support criteria-based sharing.
+          open Sharing Settings (OWD)
+          1.sports event object updated with private or Public Read Only  ->  once you update the object you can get sharing rule of that object(sports event sharing rule)
+          2.public group created/assign role wise - Sports Object Group ==> assign role = COO (other user)
+          3.Sharing rule created - Sports Event Sharing Rule ==> Field = number of player greater thann 20 ==> share with ==> Sports Object Group ==> Access Level = Read
+
+
+Mannual sharing
+       ===> open any account record and click on sharing ==> search user and select==> select the permission save it     
+
+Role Hierarchy
+===> setup ==> roles ==> add role
+     setup ==> sharing setting ==> Grant Access Using Hierarchies in 3rd column
+
+==================================================================================================================================================================================================================
+Types of OWD
+          Organization-Wide Defaults (OWD) Types in Salesforce
+
+          1.  Private  
+              Users can only view and edit records they own or those shared with them. Most restrictive setting.
+
+          2.  Public Read Only  
+              All users can view all records, but only the owner or users with sharing can edit.
+
+          3.  Public Read/Write  
+              All users can view and edit all records. No ownership restrictions.
+
+          4.  Public Read/Write/Transfer  
+              Available for Leads and Cases. Users can view, edit, and transfer ownership of records.
+
+          5.  Controlled by Parent  
+              Used for child objects in a master-detail relationship. Access is inherited from the parent object’s OWD setting.
+
+          6.  Public Full Access  
+              Available for Campaigns. Users can view, edit, transfer, and delete all records.
+
+          Special Cases  
+          Price Books: Use, View Only, or No Access.  
+          Knowledge Articles: Controlled by Data Category Visibility.
+
+
+     Organization-Wide Defaults (OWD) type cannot update if The object is a child in a Master-Detail relationship.
+     In Salesforce, child records in a Master-Detail relationship inherit the sharing and security settings of the parent object.
+
 ====================================================================================================================================================================================================================================================================================================================================================================================
+
 ==========================================================================================================================================================================================
 ==========================================================================================================================================================================================
 ==========================================================================================================================================================================================
