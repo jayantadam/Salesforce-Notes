@@ -1,0 +1,375 @@
+public class SOQLQueries {
+    
+    public LIST<College__c> getColleges(){
+        return [SELECT Name, No_of_students__c,CreatedById from College__c ORDER BY Name ASC LIMIT 5];
+    }
+    
+    public College__c getCollege(String collegeName){
+        return [SELECT Name, No_of_students__c,CreatedById from College__c where Name = : collegeName];
+    }     
+    
+    public College__c createCollege(){
+        College__c clg = new College__c(Name = 'SVCS', No_of_students__c= 60);
+        insert clg;  
+        return clg;
+    }
+    
+    public void updateCollege(String collegeName){
+        College__c  updateClg = [SELECT Name, No_of_students__c from College__c where Name=:collegeName];
+        updateClg.Name = 'SVCS Junior College';        
+        update updateClg;
+    }
+    
+    public void deleteCollege(String collegeName){
+      //College__c clg= new College__c(Name = collegeName);
+       //delete clg;
+       delete [SELECT Name FROM College__c WHERE Name = :collegeName];
+    }
+}
+
+//SOQLQueries clg = new SOQLQueries();
+//clg.getCollege('HNCC');
+//clg.createCollege();
+//clg.updateCollege('SVCS');
+//clg.deleteCollege('New College');
+
+When is IsDeleted created on a custom object?
+    Immediately when you create the custom object.
+    As soon as you create any standard custom object (__c), Salesforce auto‑generates several system fields, such as:
+        Id
+        IsDeleted
+        CreatedDate
+        CreatedById
+        LastModifiedDate
+        LastModifiedById
+        SystemModstamp
+
+    These fields exist even though they don’t show up in:
+
+    Object Manager → Fields list
+    Developer Console Schema Browser
+    Describe calls in some tools
+
+
+1. What is SOQL?
+Answer: SOQL (Salesforce Object Query Language) is Salesforce’s query language used to retrieve data
+stored in Salesforce objects (standard and custom). It is similar to SQL SELECT but tailored for
+Salesforce’s data model. You cannot use DDL or DML with SOQL; it only reads data.
+        ✔️ Summary
+        SOQL = SELECT only
+        DML = Apex (insert/update/delete/undelete/upsert)
+        DDL = Metadata or Tooling API
+  Example: Example: SELECT Id, Name FROM Account WHERE Name LIKE 'A%', 
+========================================================================================================================================================================================================================================
+ What is a parent-to-child relationship query?
+    Answer: A query from a parent record pulling a set of its child records using a subquery on the child relationship name.
+    Example: SELECT Id, Name, (SELECT Id, Title FROM Contacts) FROM Account WHERE Name LIKE 'T%'
+             ⛔ Subqueries cannot be nested (no children-of-children in one query).
+response - 001dL00001h4waRQAQ, TATA Motors, [{"Id":"003dL00001UL60jQAD","Title":null},{"Id":"003dL00001ZxhnSQAR","Title":null},{"Id":"003dL00001eSUI9QAO","Title":null}]
+========================================================================================================================================================================================================================================
+ What is a child-to-parent relationship query?
+    Answer: A query from child records referencing fields on the parent using dot notation.
+    Example: Example: SELECT Id, Title, Account.Name, Account.Industry FROM Contact WHERE Account.BillingCountry = 'India'
+              You can traverse up to 5 levels.
+
+   -- Multi-level (grandparent, etc.)
+SELECT Id, Name, Parent.Name,Parent.Parent.Name,Parent.Parent.Parent.Name FROM Account
+========================================================================================================================================================================================================================================
+ How is SOQL different from SQL?
+Answer: SOQL supports only SELECT-like operations, no INSERT/UPDATE/DELETE, and does not
+support traditional joins. Instead, it uses relationship queries (parent-to-child subqueries and
+child-to-parent dot notation).
+  Example: Example: Child-to-parent
+  : SELECT LastName, Account.Name FROM Contact,
+  : SELECT Title, AccountId, Account.Name, Account.Id FROM Contact WHERE AccountId = '0015g00000ABCdEAA1'               
+  : SELECT Title, AccountId, Account.Name, Account.Id FROM Contact WHERE AccountId IN ('0015g00000ABCdEAA1', '0015g00000XYZwQAA1')
+  : SELECT Title, AccountId, Account.Name, Account.Id FROM Contact WHERE Account.Name LIKE 'Acme%
+========================================================================================================================================================================================================================================
+ How do you filter results
+        Answer: Use WHERE with operators like =, !=, <, >, <=, >=, LIKE, IN, NOT IN, AND, OR, and parentheses. 
+        Example: Example: SELECT Id, Name FROM Account WHERE Industry = 'Technology' AND BillingCountry = 'India'
+========================================================================================================================================================================================================================================
+How do you sort and limit rows?
+    Answer: Use ORDER BY for sorting and LIMIT for restricting the number of rows. OFFSET can be used for pagination.
+    Example: Example: SELECT Id, Name FROM Account ORDER BY CreatedDate DESC LIMIT 10 OFFSET 10
+========================================================================================================================================================================================================================================
+How do you query NULL and NOT NULL?
+    Answer: Use = null and != null in WHERE clause.
+    Example: Example: SELECT Id, Name FROM Account WHERE Phone = null
+========================================================================================================================================================================================================================================
+ What is a semi-join?
+    Answer: Filtering records using IN with a subquery.
+    Example: Example: SELECT Id, Name FROM Account WHERE Id IN (SELECT AccountId FROM Contact)
+========================================================================================================================================================================================================================================
+What is an anti-join?
+    Answer: Filtering records using NOT IN with a subquery.
+    Example: Example: SELECT Id, Name FROM Account WHERE Id NOT IN (SELECT AccountId FROM Contact)
+========================================================================================================================================================================================================================================
+ How do you use aggregate functions?
+    Answer: Use COUNT, SUM, AVG, MIN, MAX with GROUP BY to aggregate data.
+    Example: Example: SELECT Industry, COUNT(Id) FROM Account GROUP BY Industry HAVING COUNT(Id) > 5
+========================================================================================================================================================================================================================================
+What is the difference between COUNT() and COUNT(Field)?
+    Answer: COUNT() returns total rows; COUNT(Field) counts only rows where that field is non-null.
+    Example: Example: SELECT COUNT() FROM Lead; SELECT COUNT(Phone) FROM Lead
+========================================================================================================================================================================================================================================
+13. How do you do pagination?
+    Answer: Use LIMIT and OFFSET in SOQL for simple pagination. For scalable pagination in Apex or APIs,
+    use server-side cursors (QueryMore in API) or keyset pagination patterns.
+    Example: Example: SELECT Id, Name FROM Account ORDER BY Id LIMIT 200 OFFSET 200
+========================================================================================================================================================================================================================================
+14. How do you query deleted records?
+    Answer: Append ALL ROWS and filter on IsDeleted.
+    Example: Example: SELECT Id, Name FROM Account WHERE IsDeleted = true ALL ROWS
+
+========================================================================================================================================================================================================================================
+List<Id> parentIds = new List<Id>{'001dL00001h4waRQAQ','001dL00001nZPbVQAW'};
+15. How do you lock rows during a transaction?
+        Key points
+        The lock is exclusive and held until the transaction ends (commit/rollback).
+        FOR UPDATE is only supported in Apex (not via API tools like Data Loader).
+        Use FOR UPDATE in the same transaction where you do the DML that needs protection.
+
+example 1.  Set<Id> parentIds = new Set<Id>();
+                for (Account a : childAccts) {
+                    if (a.ParentId != null) parentIds.add(a.ParentId);
+                }
+
+                List <Account> accts = [
+                    SELECT Id, Name
+                    FROM Account
+                    WHERE Id IN :parentIds
+                    FOR UPDATE
+                ];
+
+                // Safe to perform related DML on these accounts or their children
+                for (Account a : accts) {
+                    a.Name = a.Name + ' (Locked & Updated)';
+                }
+
+                update accts; // lock is held until the transaction completes
+
+example 2.  List<Id> parentIds = new List<Id>{'001dL00001h4waRQAQ','001dL00001nZPbVQAW'};
+                List <Account> accts = [
+                    SELECT Id, Name
+                    FROM Account
+                    WHERE Id IN :parentIds
+                    FOR UPDATE
+                ];
+
+                // Safe to perform related DML on these accounts or their children
+                for (Account a : accts) {
+                    a.Name = a.Name + ' (Locked & Updated)';
+                }
+
+                update accts; // lock is held until the transaction completes
+How do you filter using LIKE?
+    Answer: Use % for wildcard and _ for single-character match. LIKE is case-insensitive for most text fields.
+    Example: SELECT Id, Name FROM Account WHERE Name LIKE '%Media%'
+========================================================================================================================================================================================================================================
+How do you filter on date and datetime fields?
+    Answer: Use date literals (e.g., LAST_N_DAYS:30, THIS_MONTH) or ISO datetime.
+    Example: SELECT Id FROM Case WHERE CreatedDate = LAST_N_DAYS:7
+========================================================================================================================================================================================================================================
+How do you query picklist fields?
+    Answer: Filter using exact text values; consider using RecordType filtering when relevant.
+    Example: SELECT Id, Name FROM Case WHERE Status = 'New'
+========================================================================================================================================================================================================================================
+What Are Polymorphic Fields in Salesforce?
+A polymorphic field is a special Salesforce lookup field that can reference more than one object type.
+    In other words:
+    Instead of pointing to a single fixed object (like Account or Contact),
+    it can point to different parent objects depending on the record.
+    
+    OwnerId Who owns the recordUser OR Queue
+    WhatId (on Task/Event)The non‑person objectAccount, Opportunity, Case, Campaign, Any custom object (__c), etc.
+    WhoId (on Task/Event)The person objectContact OR Lead
+
+   Example: SELECT Id, WhoId, WhatId, Subject FROM Task
+========================================================================================================================================================================================================================================
+What is TYPEOF in SOQL?
+TYPEOF in SOQL is a conditional, polymorphic query construct that allows you to retrieve different fields based on the actual object type
+referenced by a polymorphic lookup field (such as WhoId, WhatId, OwnerId, etc.).
+
+        SELECT 
+            Id,
+            Subject,
+            TYPEOF What
+                WHEN Account THEN Name, Industry
+                WHEN Opportunity THEN Name, StageName
+                WHEN Case THEN CaseNumber, Status
+                ELSE Id
+            END
+        FROM Task
+========================================================================================================================================================================================================================================
+How do you query child filters in subqueries?
+Answer: You can filter in the subquery’s WHERE clause.
+    Example: Example: SELECT Id, Name, (SELECT Id, LastName FROM Contacts WHERE Email != null)
+    FROM Account
+========================================================================================================================================================================================================================================
+How do you avoid SOQL in loops?
+    Answer: Bulkify by collecting keys and performing a single query using IN.
+    Example: Example: SELECT Id, AccountId FROM Contact WHERE AccountId IN :accountIds
+========================================================================================================================================================================================================================================
+25. How do you analyze performance?
+Answer: Use Query Plan in Developer Console to examine indexes, cardinality, and cost; refactor filters
+accordingly.
+Example: Example: Adjust WHERE to use an indexed field like CreatedDate or an External Id
+========================================================================================================================================================================================================================================
+
+. Can SOQL return duplicate rows? How to dedupe?
+Answer: Yes, if multiple child records cause duplicates in parent contexts. Use GROUP BY to dedupe field
+combinations.
+Example: SELECT BillingCity FROM Account WHERE BillingCity != null GROUP BY BillingCity
+========================================================================================================================================================================================================================================
+Count how many unique parents there are
+    Example : SELECT COUNT_DISTINCT(AccountId) FROM Contact WHERE AccountId != null
+========================================================================================================================================================================================================================================
+How do you query long text area fields?
+        Answer: You can select them but cannot use them in WHERE, ORDER BY, or GROUP BY.
+        Example: SELECT Id, Description FROM Case LIMIT 5
+========================================================================================================================================================================================================================================
+ How do you query long text area fields?
+    Answer: You can select them but cannot use them in WHERE, ORDER BY, or GROUP BY.
+    Example: SELECT Id, Description FROM Case LIMIT 5
+
+How do you query big objects?
+  Answer: Big objects use Async SOQL or SOQL with restrictions; typically queried via Analytics/Async SOQL.
+  Example: Async SOQL job targeting Big Object data
+    
+{
+  "query": "SELECT Account__c, COUNT(Id) FROM CustomerEvents__b GROUP BY Account__c",
+  "targetObject": "AccountSummary__c",
+  "operation": "insert"
+}This query: Runs asynchronously
+Reads from the Big Object CustomerEvents__b
+Writes grouped results into the AccountSummary__c object
+✔ Async SOQL only supports:
+    SELECT, FROM
+    WHERE (with index fields only)
+    GROUP BY
+    ORDER BY (with limits)
+    Aggregation functions (COUNT, etc.)
+
+❌ Unsupported:
+    JOINs
+    Subqueries
+    OFFSET
+    LIMIT with non-index ordering
+    Filtering on non-index fields
+
+========================================================================================================================================================================================================================================
+How do you get recently viewed or referenced records?
+    Answer: Use FOR VIEW or FOR REFERENCE to update view/reference tracking. To query “recent items”
+    use the RecentItems or SELECT ... ORDER BY LastViewedDate
+      Example: SELECT Id, Name FROM Account ORDER BY LastViewedDate DESC LIMIT 10
+
+How do you query tasks and events (activities)?
+Answer: Query Task and Event separately, or use ActivityHistory (read-only) for combined history in
+certain contexts.
+Example: SELECT Id, Subject, ActivityDate FROM Task WHERE Status != 'Completed'
+
+How do you query for orphan child records?
+Answer: Filter where the lookup field is null.
+Example: SELECT Id, LastName FROM Contact WHERE AccountId = null
+
+32. How do you do multi-level parent queries?
+Answer: Use dot notation up to five levels in child-to-parent direction.
+Example: SELECT Id, Owner.Manager.Name FROM Case
+========================================================================================================================================================================================================================================
+How many child records can a subquery return?
+Answer: Up to 200 child records per parent in a single subquery result set.
+    Example: SELECT Id, (SELECT Id FROM Contacts) FROM Account LIMIT 10\
+
+What are governor limits relevant to SOQL?
+    Answer: Max 100 SOQL queries per synchronous transaction (200 async), 50,000 rows returned, 10,000
+    aggregate query rows, etc.
+
+give me short answer to maintain cheatsheet
+    ✅ 1. Always use bind variables (:var)
+    [SELECT Id FROM Account WHERE Name = :userInput];
+    ✅ 2. For dynamic SOQL, still bind variables
+    String soql = 'SELECT Id FROM Account WHERE Name = :userInput';
+    ✅ 3. Avoid SOQL in loops
+    List<Id> accountIds = new List<Id>{'0015g00000ABCdEAA1', '0015g00000XYZwQAA1'};
+    List<Account> accts = [SELECT Id, Name FROM Account WHERE Id IN :accountIds];
+    ✅ 4. Use selective filters (indexed fields) for large data sets 
+    [SELECT Id FROM Account WHERE CreatedDate = LAST_N_DAYS:30];
+    ✅ 5. Use Query Plan tool to analyze and optimize queries       
+
+ How do you fetch unique values (distinct)?
+    Answer: Use GROUP BY to get unique combinations of field values.
+    Example: SELECT BillingCity FROM Account WHERE BillingCity != null GROUP BY BillingCity
+        SELECT DISTINCT FirstName, LastName FROM Contact
+        (SELECT Id FROM Contacts)   // ❌ cannot use DISTINCT here
+========================================================================================================================================================================================================================================
+How do you query by sharing?
+public with sharing class MyClass {
+   public Account<LIST> getAccounts(){
+     LIST<Account> accounts = [SELECT Id, Name FROM Account];
+     return accounts;
+   }
+
+   Can you use reference formula fields in WHERE?
+    Answer: Yes, you can use reference formula fields in the WHERE clause just like regular fields.
+    Example: SELECT Id, Name  FROM Opportunity WHERE Total_Amount__c > 50000
+========================================================================================================================================================================================================================================
+How do you use date literals for relative filters?
+    Answer: Use literals like TODAY, YESTERDAY, THIS_MONTH, LAST_N_DAYS:n, NEXT_QUARTER.
+    Example: Example: SELECT Id FROM Case WHERE ClosedDate = LAST_N_DAYS:30
+========================================================================================================================================================================================================================================
+Can you use HAVING without GROUP BY?
+Answer: No. HAVING must follow a GROUP BY with an aggregate function.
+    Example: Example: SELECT StageName, COUNT(Id) FROM Opportunity GROUP BY StageName
+    HAVING COUNT(Id) > 3
+
+Can you create alias fields or tables?
+    Answer: SOQL does not support table aliases like SQL. Field aliasing is available only in aggregation
+    contexts for API responses, not Apex.
+    Example: Example: SELECT COUNT(Id) cnt FROM Account GROUP BY Industry (API naming)
+
+========================================================================================================================================================================================================================================
+How do you handle large result sets?
+    Answer: Use LIMIT to restrict rows, OFFSET for pagination, or QueryMore in API for large datasets.
+    Example: Example: SELECT Id, Name FROM Account ORDER BY CreatedDate DESC LIMIT 100 OFFSET 100
+========================================================================================================================================================================================================================================
+How do you query multi-currency fields?
+    Answer: Use the field API name; Salesforce handles currency conversion based on user context.
+    Example: SELECT Id, Name, Amount FROM Opportunity WHERE Amount > 10000
+========================================================================================================================================================================================================================================
+How do you query encrypted fields?  
+    Answer: You can select encrypted fields, but filtering is limited to equality checks.
+    Example: SELECT Id, Name, Encrypted_Field__c FROM CustomObject__c WHERE Encrypted_Field__c = 'someValue'    
+========================================================================================================================================================================================================================================
+How do you query formula fields?    
+    Answer: You can select and filter on formula fields as they are treated like regular fields.
+    Example: SELECT Id, Name, Total_Amount__c FROM Opportunity WHERE Total_Amount__c > 50000
+========================================================================================================================================================================================================================================
+How do you query multi-select picklist fields?  
+    Answer: Use INCLUDES and EXCLUDES operators for filtering.
+    Example: SELECT Id, Name FROM Contact WHERE Languages__c INCLUDES ('English', 'Spanish')
+========================================================================================================================================================================================================================================
+How do you query large text area fields?    
+    Answer: You can select them but cannot use them in WHERE, ORDER BY, or GROUP BY.
+    Example: SELECT Id, Description FROM Case LIMIT 5
+}
+========================================================================================================================================================================================================================================
+How do you control query selectivity with leading field filters?
+    Answer: Start WHERE clauses with selective filters on indexed fields to improve performance.
+       default indexed fields :
+            Id
+            OwnerId
+            CreatedDate, LastModifiedDate
+            RecordTypeId
+            External IDs
+
+    Example: SELECT Id, Name FROM Account WHERE CreatedDate = LAST_N_DAYS:30 AND Industry = 'Technology'
+========================================================================================================================================================================================================================================
+How do you lock parent then child to avoid deadlocks?
+    Answer: Query and lock parents first with FOR UPDATE, then process related children to maintain
+    consistent lock order.
+    Example: SELECT Id FROM Account WHERE Id IN :ids FOR UPDATE
+
+What are limits on relationship depth?
+Answer: Up to five levels for child-to-parent and one level for parent-to-child per subquery.
+Example: SELECT Id, Owner.Manager.Manager.Name FROM Case

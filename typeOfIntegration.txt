@@ -1,0 +1,261 @@
+Below are **simple Salesforce steps or small code examples** for each common integration type. These are short enough to explain in an **interview**.
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# 1. REST API Integration (Using Postman or External System)
+        ### Example
+
+        Create a **Lead in Salesforce from an external system**.
+
+        ### Steps
+        1. Get **Access Token using OAuth**.
+        2. Send **POST request** to Salesforce REST API.
+        3. Provide Lead data in JSON.
+        **Endpoint**
+        ```
+        POST /services/data/v59.0/sobjects/Lead/
+
+        **Body**
+        ```json
+        {
+        "LastName":"Ravi",
+        "Company":"ABC Company",
+        "Phone":"9876543210"
+        }
+        ```
+
+    **Result:** Lead record created in Salesforce.
+    1. Inbound REST API (External system calls Salesforce)
+        Setup -> app manager -> new connected app -> enable OAuth -> get client id and secret -> use in external system to get access token -
+            get the scret token from profile -> settings -> reset secret token -> use in postman to get access token 
+
+    set in postman -> 
+    url - https://login.salesforce.com/services/oauth2/success 
+    grant_type:password
+    client_id:3MVG9GCMQoQ6rpzSnw2.GE2hufyOCEYJSUJtVKIXnGMCNkzVzPRkbqyRt8zkNLUn53W6utwyqbfDu_XOM1E2n
+    client_secret:B70CFB1AAB57BFB2F8C3F599DBF98A9FC514F46EB938943A686A14D7B4A4BD01
+    username:jayantadam.jda987@agentforce.com
+    password:InsideMyVDI@199616olTUdkAD0lOa072DAHehgt2Jd
+         it will return the access token and instance url -> use instance url and add access token the request header 
+         -> Authorization: Bearer your_access_token -> go to body -> raw -> json 
+     -> enter the lead data -> send request -> check response for success.
+            open [postman](https://www.postman.com/) -> create new request -> set method to POST 
+            -> enter URL (https://yourInstance.salesforce.com/services/data/v59.0/sobjects/Lead/) -> go to Authorization tab -> select OAuth 2.0 -> click Get New Access Token -> fill in details (client id, client secret, auth URL, token URL) -> click Request Token -> use the token in the request header (Authorization: Bearer your_access_token) -> go to Body tab -> select raw and JSON format -> enter JSON data for Lead -> click Send -> check response for success.
+            Example: Create Lead from external system using REST API.
+            ``` 
+            POST /services/data/v59.0/sobjects/Lead/
+            {
+                "LastName":"Ravi",
+                "Company":"ABC Company",
+                "Phone":"9876543210"
+            }
+            ``` 
+
+           i.   Standard REST API (CRUD operations)
+           ii.  Composite REST API (multiple calls in one request)
+           iii. Custom Apex REST API (custom logic, reset operations)
+
+    2. Outbound REST API (Salesforce calls external system)
+        i. Use **HTTP Callouts** in Apex to send data to external system.
+            Example: Notify external system when Opportunity is Closed Won.
+            ```apex
+            Http http = new Http();
+            HttpRequest request = new HttpRequest();
+            request.setEndpoint('https://external-system.com/api/notify');
+            request.setMethod('POST');
+            request.setHeader('Content-Type', 'application/json');
+            request.setBody('{"message":"Opportunity Closed Won"}');
+            HttpResponse response = http.send(request);
+        ii. You can also call external REST API from **Flow** using **HTTP Callout** action.
+            HTTP Callout in Flow:
+            - Method: POST
+            - URL: https://external-system.com/api/notify
+            - Body: {"message":"Opportunity Closed Won"}
+            ```
+        iii. For **authentication**, you can use **Named Credentials** to manage endpoint and credentials securely.
+        iv. You can also use **External Services** to connect to external REST APIs without writing code by importing API schema.           
+                    
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# 2. Platform Events
+    ### Example
+    Notify **warehouse system when order created**.
+    ### Step 1: Create Platform Event
+    ```
+    Setup → Platform Events → New
+    Name: Order_Event
+    Field: Order_Id
+    ```
+
+    ### Step 2: Publish Event (Apex)
+
+    ```apex
+    Order_Event__e event = new Order_Event__e(
+        Order_Id__c = 'ORD123'
+    );
+
+    EventBus.publish(event);
+    ```
+
+    External system subscribes using **Streaming API**.
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# 3. Batch Data Integration (Data Loader)
+### Example
+Import **10,000 Contacts from Excel**.
+
+### Steps
+
+1. Export data as **CSV file**.
+2. Open **Data Loader**.
+3. Click **Insert**.
+4. Select **Contact object**.
+5. Upload CSV.
+6. Map fields.
+7. Click **Finish**.
+
+Records get inserted in bulk.
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# 4. Batch Apex Integration
+### Example
+Update Account data from external system every night.
+### Code
+```apex
+global class AccountBatch implements Database.Batchable<SObject>{
+
+    global Database.QueryLocator start(Database.BatchableContext bc){
+        return Database.getQueryLocator(
+            'SELECT Id, Name FROM Account'
+        );
+    }
+
+    global void execute(Database.BatchableContext bc, List<Account> scope){
+        for(Account acc : scope){
+            acc.Name = acc.Name + ' Updated';
+        }
+        update scope;
+    }
+
+    global void finish(Database.BatchableContext bc){}
+}
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+5. What is an Outbound Message?
+
+An **Outbound Message** is a **SOAP message sent from Salesforce to an external endpoint URL** when a workflow rule or process is triggered.
+
+It allows Salesforce to **push data to another system in real time** without needing that system to constantly poll Salesforce.
+
+            Flow:
+            ```
+            Opportunity Closed Won
+                    ↓
+            Workflow Rule
+                    ↓
+            Outbound Message
+                    ↓
+            External Web Service (ERP)
+                    ↓
+            Sales Order Created
+            ```
+
+            ---
+
+
+Example uses:
+
+* Send **lead data** to a marketing system.
+* Notify an **ERP system** when an opportunity closes.
+* Send **case updates** to a support application.
+
+---
+
+    # 2. How Outbound Messages Work (Step-by-Step)
+
+    ### Step 1: Create a Workflow Rule
+
+    A **workflow rule** monitors a record.
+
+    Example:
+
+    * Object: Opportunity
+    * Condition: Stage = Closed Won
+
+    When the condition becomes true, the workflow fires.
+
+---
+        ### Step 2: Configure Outbound Message
+        You define:
+
+        * **Endpoint URL** – external system web service URL
+        * **Fields to send** – selected record fields
+        * **User for session** – determines field access
+        Example endpoint:
+        ```
+        https://example.com/salesforce/listener
+        ```
+--
+
+### Step 3: Salesforce Sends SOAP Message
+Salesforce sends a **SOAP XML message** to the external system.
+        Example structure:
+        ```xml
+        <soapenv:Envelope>
+        <soapenv:Body>
+            <notifications>
+            <OrganizationId>00Dxx0000001ABC</OrganizationId>
+            <ActionId>04kxx000000XYZ</ActionId>
+            <SessionId>...</SessionId>
+            <Notification>
+                <Id>001xx000003ABC</Id>
+                <sObject>
+                <Id>001xx000003ABC</Id>
+                <Name>Test Account</Name>
+                </sObject>
+            </Notification>
+            </notifications>
+        </soapenv:Body>
+        </soapenv:Envelope>
+        ```
+---
+        ### Step 4: External System Receives Message
+        The external system must expose a **SOAP web service endpoint** to receive the message.
+        It processes the data and sends an **ACK (acknowledgment)** response back to Salesforce.
+        ---
+
+    ### Step 5: Retry Mechanism
+
+    If the external system **does not respond**, Salesforce automatically retries.
+
+    Retry schedule:
+
+    * Immediately
+    * Then after increasing intervals
+
+
+✅ **Interview Tip:**
+Many companies now prefer **Platform Events or Apex Callouts** instead of Outbound Messages for modern integrations in Salesforce.
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+6. SOAP API Integration
+
+### Example
+
+External **ERP system creates Account in Salesforce**.
+
+### Steps in Salesforce
+
+1. Go to **Setup → API → Generate Enterprise WSDL**.
+2. Download the **WSDL file**.
+3. External system uses this WSDL to connect.
+4. ERP sends **XML SOAP request** to create record.
+
+**SOAP Operation Example**
+
+```xml
+<create>
+   <sObjects xsi:type="Account">
+      <Name>ABC Pvt Ltd</Name>
+   </sObjects>
+</create>
+```
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

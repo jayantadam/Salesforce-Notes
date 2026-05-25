@@ -1,6 +1,427 @@
 Link - https://orgfarm-d4f01930d3-dev-ed.develop.my.salesforce.com
 Username - jayantadam.jda987@agentforce.com
-InsideMySandbox@512196
+InsideMyVDI@199616
+
+==============Old Sandbox====================================================
+https://orgfarm-d4f01930d3-dev-ed.develop.my.salesforce.com/
+Username
+admin user - jayantadam.jda987@agentforce.com
+
+Inside@161996
+
+old usernames
+    jayantadam.jda-q4xg@force.com
+    jayantadam.jda@wise-bear-fjwqjn.com
+    mbrow@gmail.com
+====================================================end====================================================================
+====================================================NEW Sandbox=================================================
+URL - https://orgfarm-986409c268-dev-ed.develop.my.salesforce.com
+1. Email -    adamjays96@gmail.com
+   Username - adamjays96.d374928b670f@agentforce.com
+   Password - Inside@512196
+   
+2. Email -     jayantadam.jda@gmail.com
+   Username -  jayantadam.jda@gmail.com
+   Password -  Inside@512196
+
+====================================================end====================================================================
+ Important Errors Explained
+ ❗Mixed DML Error   ===> System.MixedDMLException
+    Occurs when:
+    • Setup Object (User, Profile,PermissionSet,Group)
+    • Non-Setup Object (Account, Contact)
+    Are updated in same transaction.
+        👉 Solution:  Use Future or Queueable.
+                    Account Trigger
+                    ↓
+                    Queueable Apex
+                    ↓
+                    Create User
+                    ↓
+                    Assign Permission Set
+                    
+        @future
+        public static void createUserAsync() {
+            User u = new User(...);
+            insert u;
+        }
+
+        Account acc = new Account(Name = 'Test');
+        insert acc;
+
+        YourClass.createUserAsync(); // ✅ separate transaction
+⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻
+➡️ System.CalloutException
+ - You cannot make an HTTP callout after performing a DML operation in the same transaction.
+     • DML before Callout in same transaction (especially in trigger)
+    👉 Solution:
+    
+     ❌ Example (Will Fail)
+            Account acc = new Account(Name = 'Test');
+            insert acc;  // ✅ DML done (uncommitted work pending)
+
+            Http http = new Http();
+            HttpRequest req = new HttpRequest();
+            req.setEndpoint('https://api.example.com');
+            req.setMethod('GET');
+            HttpResponse res = http.send(req); // ❌ ERROR
+``
+ Fix 1: Callout BEFORE DML
+        Http http = new Http();
+        HttpRequest req = new HttpRequest();
+        req.setEndpoint('https://api.example.com');
+        req.setMethod('GET');
+
+        HttpResponse res = http.send(req); // ✅ Callout first
+
+        Account acc = new Account(Name = 'Test');
+        insert acc; // ✅ Then DML
+
+
+ Fix 2: Move callout to Future/Queueable.
+⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻
+🔹Best Practice – Named Credential
+        Instead of:
+        req.setEndpoint('https://api.example.com/account');
+        Use:
+        req.setEndpoint('callout:My_Named_Credential/account');
+
+        Why?
+        ✅ Secure
+        ✅ No hardcoded URL
+        ✅ Handles authentication
+⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻
+1. if try block fails and we have some DML operation in finally block then will it roll back or not
+    Now we are at the core of the trick: **you want to make sure the `finally` block can insert a record that is *not rolled back* even if the `try` fails**.
+        **DML in `finally`** is **still part of the main transaction**, so it will roll back if the exception is unhandled.
+        **To prevent rollback**, move the DML to a **separate transaction** using:
+        * `@future` (simplest)
+        * `Queueable` (more flexible)
+        * **Platform Event** (for async logging)
+        * Always **catch the exception** in `catch` to continue transaction if you want `finally` DML to succeed in the same transaction.
+
+## 1. If exception is caught → finally DML can commit
+     ```apex
+        try{
+            // ❌ This will fail (Name is required for Account)
+            Account acc = new Account();
+            insert acc;
+        }catch (Exception e) {
+            // ✅ Exception is handled
+            System.debug('Error occurred: ' + e.getMessage());
+        }finally {
+            // ✅ This will execute and commit
+            Contact con = new Contact(
+                LastName = 'Final Contact',
+                AccountId = acc.Id // Note: acc.Id will be null due to failed insert, but this is just for demonstration
+            );
+            insert con;
+            System.debug('Contact inserted in finally');
+        }
+        ``
+Result:
+* `badRecord` fails
+* `goodRecord` succeeds
+-----------------------------------------------------------------------------------------------------------
+## 2. If exception is NOT handled → everything rolls back
+        ```apex
+        try {
+            insert badRecord;
+        }
+        finally {
+            insert goodRecord;
+        }
+        ```
+        Result:
+        * exception propagates
+        * entire transaction rolls back
+        * `goodRecord` does NOT persist
+-----------------------------------------------------------------------------------------------------------
+## 3. Savepoint/Rollback matters too
+If you do:
+        ```apex
+        Savepoint sp = Database.setSavepoint();
+            try {
+                insert badRecord;
+            }
+            catch(Exception e) {
+                Database.rollback(sp);
+            }
+            finally {
+                insert goodRecord;
+            }
+        ```
+        Then:
+        * rollback undoes work before rollback
+        * `goodRecord` inserted after rollback can still commit
+--------------------------------------------------------------------------------------------------------
+Here’s a clear, interview-friendly approach.
+    ## 1️⃣ Use `try-catch-finally` with a `@future` insert
+    ```apex
+    public class LogHelper {
+        @future
+        public static void insertLog(String logName) {
+            Log__c log = new Log__c(Name = logName);
+            insert log; // separate transaction → will not roll back
+        }
+    }
+
+public class Demo {
+    public static void demoMethod() {
+        try {
+            Account acc = new Account(Name='Test Account');
+            insert acc; // suppose this fails
+        }
+        catch(Exception e) {
+            System.debug('Caught exception: ' + e.getMessage());
+        }
+        finally {
+            // This insert will run in a separate transaction
+            LogHelper.insertLog('Finally block executed');
+        }
+    }
+}
+
+2. in apex method can we insert account and pass accountId to external api   
+=> Yes, you can insert an Account record in an Apex method and then pass the Account Id to @future method, queueable from there you can make the API call. 
+
+4. when account desc is 'create contact' then create 5 Contacts with same desc and update the account desc as 'created contact'
+
+RollUp summary - COUNT, SUM, MIN, MAX
+1. COUNT - Counts the number of related records (e.g., number of Contacts related to an Account).
+2. SUM - Calculates the total of a numeric field across related records (e.g., total Opportunity Amount for an Account).
+3. MIN - Finds the smallest value of a numeric field across related records (e.g., earliest Close Date of Opportunities related to an Account).
+4. MAX - Finds the largest value of a numeric field across related records (e.g., latest Close Date of Opportunities related to an Account).
+
+====================================================================================================================================================================================
+
+Opportunity stages
+1. Prospecting => Identifying potential customers who may need the product.
+2. Qualification => Checking if the customer has a valid need, budget, and authority.
+3. Needs Analysis => Understanding the customer’s problems and requirements.
+4. Value Proposition => Explaining how your solution benefits the customer.
+5. ID Decision Makers => Identifying people who approve or influence the deal.
+6. Proposal/Price Quote => Sending the official proposal or quotation to the customer.
+7. Negotiation/Review => Discussing terms, pricing, and final adjustments.
+8. Closed Won => Customer agrees and the deal is successfully completed.
+9. Closed Lost => Deal is not closed; customer did not proceed.
+
+Acryonym for feature - CCCHHADIR
+
+| Feature / Capability                       | Trigger (Apex Trigger)                                                   | Flow                                         |
+| ------------------------------------------ | ------------------------------------------------------------------------ | -------------------------------------------- |
+| Coding                                     | Full coding using Apex                                                   | Drag-and-drop configuration                  |
+| Complex business logic                     | Can implement very complex logic with loops, collections, and algorithms | Limited for very complex logic               |
+| Complex multi-object processing            | Can handle many related objects with complex relationships               | Harder to manage in Flow                     |
+| Handling very large data (bulk operations) | Efficient for thousands of records (bulkified code)                      | May hit limits or become slower              |
+| Handling Advanced error                    | Can use try-catch, custom exceptions                                     | Basic fault handling only                    |
+| DB operations Fine control                 | Full control in before/after insert, update, delete                      | Limited control compared to triggers         |
+| Integration with external APIs             | Full control for callouts and integrations                               | Limited integration capability               |
+| Reusable code with classes                 | Can call Apex classes and reusable methods                               | Cannot directly create reusable code classes |
+
+Acryonym for Capability - LLSSJQC
+
+| Capability                                        | Batch Apex                                                       | Queueable Apex                                        |
+| ------------------------------------------------- | ---------------------------------------------------------------  | ----------------------------------------------------- |
+| Large datasets (millions of records)              | ✅ Yes – processes records in chunks (batches)                   | ❌ Not designed for very large datasets                |
+| Lifecycle atch start, execute, finish             | ✅ Has start(), execute(), finish() methods                      | ❌ Only has execute() method                           |
+| Stateful processing                               | ✅ Supports `Database.Stateful` to maintain state across batches | ❌ Cannot maintain state between executions            |
+| Scheduling                                        | ✅ Can be scheduled to run at specific times                     | ❌ Cannot be scheduled (must be invoked)              |
+| Job failure                                       | ✅ If one batch fails, others still run                          | ❌ If job fails, whole job fails                       |
+| QueryLocator for large queries (50 million)       | ✅ Can use `Database.QueryLocator` (up to 50 million records)    | ❌ Cannot use QueryLocator                             |
+| Chunking                                          | ✅ Splits records into batches (default 200)                     | ❌ Processes all records in one job                    |
+
+Stateful processing example in Batch Apex:
+        public class BatchStatefulCheat implements Database.Batchable<sObject>, Database.Stateful {
+            Integer success = 0;
+            Integer failed = 0;
+            public Database.QueryLocator start(Database.BatchableContext bc) {
+                return Database.getQueryLocator('SELECT Id, Name FROM Account');
+            }
+            public void execute(Database.BatchableContext bc, List<Account> scope) {
+                for (Account acc : scope) {
+                    try {
+                        acc.Name = acc.Name + ' - Updated'; // sample update
+                        success++;
+                    } catch (Exception e) {
+                        failed++;
+                    }
+                }
+
+                update scope; // bulk update
+            }
+            public void finish(Database.BatchableContext bc) {
+                System.debug('✅ SUCCESS: ' + success);
+                System.debug('❌ FAILED: ' + failed);
+                // Optional: Notify user
+                // send email / create log record
+            }
+        }
+
+Need to Prepare the project and use cases for interview
+which projecgt worked on and what use cases you have done in that project
+LWC pages
+
+LMC use case and can we use other org LMC in our org
+type of flows in salesforce and which flow you have used in your project
+
+Salesforce Trigger Order of Execution -
+    1️⃣ Validation Rules
+    2️⃣ Before Triggers
+    3️⃣ Record Is Saved (But Not Committed Yet)
+    4️⃣ After Triggers
+    5️⃣ Assignment Rules -> Lead Assignment Rules
+    6️⃣ Auto-Response Rules -> Automatic email responses are sent (if configured).
+    7️⃣ Flows / Process Builder / Workflow Rules 
+    8️⃣ Escalation Rules (For Cases)
+    9️⃣ Final Commit
+
+Software Development Lifecycle?
+ Planning → Analysis → Design → Development → Testing → Deployment → Maintenance
+
+=============================================================================================================================================================================================
+Authorisation vs authontication of user
+Authentication: Verifies a user's identity (who you are). Examples: username/password, SSO (SAML/OAuth), MFA, JWT — used to establish a session or token.
+Authorization: Controls what an authenticated user can do or see (what you can access). Examples in Salesforce: Profiles, Permission Sets,
+Object/Field‑Level Security, OWD, Role Hierarchy, Sharing Rules.
+=============================================================================================================================================================================================
+omnichannel in salesforce and how it is useful for service cloud
+
+need to prepare callout method in apex and call one api
+
+how you are calling api in lwc and what are the things you did
+
+what is process builder and what are the use cases of process builder
+
+What: Process Builder is a point‑and‑click, declarative automation tool in Salesforce that lets admins create processes to respond to record changes (create/update), 
+schedule actions, and invoke actions (field updates, email alerts, create records, submit for approval, call Apex, call flows, post to Chatter).
+Common uses: Auto-update fields, create related records, send emails, schedule follow-up actions, kick off flows or Apex for more complex logic.
+=============================================================================================================================================================================================
+How to create a process builder:
+Setup -> Process Builder -> New Process ->
+choose object -> Define Criteria for this Action Group -> Add Immediate Actions (field update, email alert, create record, submit for approval, call Apex, call flow) 
+> Add Scheduled Actions (optional) -> Activate.
+=============================================================================================================================================================================================
+1. Describe how Salesforce CRM is used by organizations?
+
+ At its core, Salesforce is a customer-facing CRM system. It is used to record customer details and the organization’s interactions with them. Salesforce’s original and
+ most popular product is Sales Cloud. This is used by organizations to record initial interest from customers (Leads) and follow through a sales cycle, taking them
+ through various steps to win their business.
+
+On the other side of the coin, you have Service Cloud, which is designed to support customer service teams from within a business. Service Cloud helps agents deal
+with customer queries, as well as solve issues.
+
+Sales and Service Cloud are Salesforce’s two main products, but over the years, Salesforce has been able to support all kinds of internal teams within an organization,
+including Marketing, Analytics, Portals, Integration, and Collaboration (Slack).
+=============================================================================================================================================================================================
+2. What are the main benefits of a cloud solution like Salesforce?
+Salesforce is a Cloud SaaS platform (Software-as-a-Service), which means you access it through your web browser, as opposed to a desktop application.
+You’re also able to access it through a mobile application on both major platforms (Android and iOS). Cloud systems have major benefits over legacy computer systems 
+that require huge amounts of server power to run. This is why most applications you access today, in your business or personal life, 
+will be cloud-based (Spotify, Gmail, Office365, Dropbox, etc.).
+
+Some of the biggest benefits of cloud computing solutions include:
+
+    Cost: Older on-premise solutions required a huge upfront investment in infrastructure. You would need to buy all the servers, install them, and maintain them. With Cloud computing, you are essentially outsourcing the maintenance of the infrastructure to a provider such as Salesforce.
+    Upgrades: Instead of managing upgrades to your software yourself, Cloud computing providers take care of this for you. Salesforce will upgrade your solution to the latest version three times a year. This comes with new features and improvements to the system without you having to lift a finger or pay additional fees.
+    Mobility: Cloud computing tools can be accessed from anywhere. As long as you have a device and an internet connection, you can access any information that is stored in Salesforce. This is particularly handy if you travel frequently for work or meetings.
+=============================================================================================================================================================================================
+3. What are some key Salesforce products and their use cases?
+   Salesforce has a wide range of products that cater to different business needs. Some of the key Salesforce products include:
+        Sales Cloud: A CRM platform designed to support sales teams in managing leads, opportunities, and customer relationships.
+        Service Cloud: A customer service platform that helps support teams manage customer inquiries and issues.
+        Marketing Cloud: A digital marketing platform that enables businesses to create and manage personalized marketing campaigns across various channels.
+        Commerce Cloud: An e-commerce platform that allows businesses to create and manage online stores.
+        Community Cloud: A platform for building online communities and portals for customers, partners, and employees.
+        Einstein Analytics: A data analytics platform that provides insights and predictive analytics to help businesses make informed decisions.
+=============================================================================================================================================================================================
+4. What are some common Salesforce use cases across different industries?
+    Salesforce is used across various industries to streamline operations and enhance customer relationships. Some common use cases include:
+    Retail: Managing customer data, tracking sales, and personalizing marketing campaigns.
+    Financial Services: Managing client relationships, tracking investments, and ensuring regulatory compliance.
+    Healthcare: Managing patient information, scheduling appointments, and coordinating care.
+    Manufacturing: Managing supply chains, tracking inventory, and coordinating with distributors.
+    Non-Profit: Managing donor relationships, tracking fundraising campaigns, and coordinating volunteer efforts.
+    Salesforce Limits and Best Practices
+================================================================================================================================================================================
+  Difference between soql and sosl
+     SOQL -  Querying specific objects when you know where the data lives.
+     SELECT Id, Name, Email FROM Contact WHERE LastName = 'Smith'
+
+ SOSL (Salesforce Object Search Language)
+    Best for: Searching text across multiple objects when you don’t know exactly where the data is stored.    
+    FIND 'Smith' IN ALL FIELDS RETURNING Contact(Id, Name), Account(Id, Name)
+
+        | Feature    | SOQL                            | SOSL                   |
+        | ---------- | ------------------------------- | ---------------------- |
+        | Purpose    | Structured data query           | Text search            |
+        | Objects    | One object (with relationships) | Multiple objects       |
+        | Similar to | SQL                             | Search engine          |
+        | Uses       | SELECT                          | FIND                   |
+        | Best for   | Reports, filtered queries       | Global search features |
+
+================================================================================================================================================================================
+Apex Per‑Transaction Limits
+
+ SOQL Limits
+    Total SOQL queries issued - 100 (Sync Apex) / 200 (Async)
+    Records retrieved by SOQL - 50,000
+ DML Limits
+    Total DML operations  150
+    Records processed by DML statements - 10,000
+ Heap Size
+    Maximum heap size - 6 MB (Sync) / 12 MB (Async)
+ CPU Time
+    maximum CPU time on Salesforce servers - 10,000 ms (Sync) / 60,000 ms (Async)      
+
+ Trigger-Specific Limits
+    Never do SOQL/DML inside loop ❌
+    Use Lists, Sets, Maps for bulk operations ✔
+    Use Trigger.new and Trigger.old efficiently
+    Limit recursion by static Boolean flags
+================================================================================================================================================================================
+decoraters in lwc
+  track, wire, api
+
+syntax of calling apex method from lwc
+   passing parameter from lwc to apex
+   calling apex method on button click in lwc
+
+   before making callout basic setup or config we have to salesforce
+
+@wire(messageContext) messageContext;
+
+wire(AppexMethodName,{param:'$propertyName'})
+    getData({data,error}){
+    if(data){
+    //do something
+    }
+    if(error){
+    //handle error
+    }
+    };
+
+Type of Apex in Salesforce
+============================================================Apex Types in Salesforce=========================================================================================================================
+| **Category**        | **Apex Type**     | **Purpose**                    |
+| ------------------- | ----------------- | ------------------------------ |
+| Synchronous Apex    | Apex Classes      | Business logic                 |
+|                     | Triggers          | Automate on DML                |
+|                     | LWC/Aura Apex     | Server logic for components    |                     
+|                     | VF Controllers    | UI logic for Visualforce       |
+| Asynchronous Apex   | Future Methods    | Simple async tasks             |
+|                     | Queueable Apex    | Advanced async + chaining      |
+|                     | Batch Apex        | Large data processing          |
+|                     | Schedulable Apex  | Run on schedule (CRON)         |
+|                     | Continuations     | Long-running callouts          |
+| Security Apex       | With Sharing      | Enforce sharing rules          |
+|                     | Without Sharing   | Ignore sharing rules           |
+|                     | Inherited Sharing | Inherit caller context         |
+| Testing Apex        | Test Classes      | Unit tests                     |
+|                     | Test Setup        | Common test data               |
+| Declarative-Invoked | Invocable Apex    | Runs from Flow/Process Builder |
+|                     | Apex REST         | Custom REST APIs               |
+|                     | Apex SOAP         | Custom SOAP APIs               |
 =================================================================INTERVIEW QUESTIONS=========================================================================================================================
 1. Profiles vs. Permission Sets (Common Interview Question)
 
@@ -55,39 +476,71 @@ Inside developer console if user wants to remove apex control in developer conso
 
 Salesforce Security Model (video 9 - 55.54 seconds)
             Salesforce uses a layered security model to control data access at different levels:
-
             *   Organization-Wide Defaults (OWD) (sharing setting in setup): Baseline access (Private, Public Read Only, Public Read/Write).
             *   Role Hierarchy :  Users higher in hierarchy inherit access to subordinates’ records.
             *   Sharing Rules:  (if object has private OWD then you get sharing rules, setup => sharing setting => object name Sharing Rules) 
                                 Open up access based on criteria or ownership.
             *   Manual Sharing: Record owner shares specific records.
             *   Teams: Account, Opportunity, Case teams for collaborative access.
-            *   Apex Managed Sharing: Programmatic sharing for custom logic.
+            *   Apex Managed Sharing: Programmatic sharing for custom logic.\
 
-            1.  Object-Level Security (CRUD)  
-                Controls access to entire objects like Account, Contact, Opportunity.  
-                Managed through Profiles and Permission Sets.  
-                Example: A user may have Read access to Accounts but no Delete access.
+1.Organization Level Security in Salesforce controls who can log in and from where. 
+  It mainly includes Password Policies, Login IP Ranges, Login Hours, and Network Access.
+2.Object-Level Security(OLS) (CRUD)  
+  Controls access to entire objects like Account, Contact, Opportunity.  
+  Managed through Profiles and Permission Sets.  
+  Example: A user may have Read access to Accounts but no Delete access.
+3. Field-Level Security (FLS)  
+  Controls visibility and editability of individual fields within an object.  
+  Managed through Profiles and Permission Sets.  
+  Example: A user can view Account Name but not Revenue field.
+4.  Record-Level Security (RLS)  
+    Controls which records within an object a user can access.  
+        1.  Organization-Wide Defaults (OWD)
+              Sets the baseline access for all users on each object (e.g., Private, Public Read Only, Public Read/Write).
+              Example: If Contacts are Private, users only see records they own (or those shared with them).
+        2.  Sharing Rules
+              Used to open up access beyond OWD. need to create public group first
+              Types:
+                  Owner-based: Share records owned by certain roles/groups.  - share records owned by sales team with marketing team.
+                  Criteria-based: Share records meeting certain field criteria. - share accounts with Industry = 'Technology' with a specific group. 
+        3.  Manual Sharing
+              Record owner or admin can share a specific record with another user.
+        4.  Teams
+              Account Teams, Opportunity Teams, Case Teams allow sharing related records with team members.
+        5.  Role Hierarchy
+              Users higher in the hierarchy inherit access to records owned by users below them.
+              Example: A Sales Manager can see records owned by their team.
+        6.  Apex Managed Sharing
+              Programmatic sharing for complex scenarios not covered by declarative sharing rules.  
 
-            2.  Field-Level Security (FLS)  
-                Controls visibility and editability of individual fields within an object.  
-                Managed through Profiles and Permission Sets.  
-                Example: A user can view Account Name but not Revenue field.
+4. Admin/Developer Controls:
+     With sharing / without sharing in Apex controls whether sharing rules are enforced by code.
+     Avoid granting View All or Modify All where possible — they bypass record-level controls.  
+      
+5. Other Org & Platform Security:
+    Login & Session Controls: MFA, IP ranges, login hours, session timeout.
+    Encryption & Data Protection: Shield Platform Encryption, encrypted fields.
+    Auditing & Monitoring: Setup Audit Trail, Field History Tracking, Event Monitoring.
+    Connected Apps & OAuth Policies: control external integrations and scopes.
 
-            3.  Record-Level Security  
-                Controls which records within an object a user can access.  
-                Components:
+Common Best Practices (Interview‑ready):
+Principle of least privilege: give minimal object/field access needed.
+    Use profiles for baseline, permission sets for additions.
+    Set OWD to the most restrictive practical value (e.g., Private) then open via role hierarchy/sharing rules.
+    Prefer public groups + criteria-based sharing over many manual shares.
+    Enforce MFA and monitor with audit logs.
+    Use Apex managed sharing for complex scenarios; test thoroughly for bulk operations and governor limits.
 
+Short Example:
+    OWD for Account = Private → Sales reps can only see owned accounts.
+    Role Hierarchy: Sales Manager above reps automatically sees team accounts.
+    Sharing Rule: all accounts with Industry = 'Enterprise' shared read/write with Marketing public group.
+    Field‑Level Security: hide Salary__c from non‑HR profiles via FLS.
+    Use a Permission Set to give an analyst API Enabled and extra object access without changing their profile.    
 
-            Additional Security Features  
-            Login & Session Security: IP restrictions, login hours, MFA.  
-            Data Encryption: Shield Platform Encryption for sensitive data.  
-            Auditing & Monitoring: Field history tracking, Setup Audit Trail, Event Monitoring.  
-            Record Types & Page Layouts: Control UI and data entry experience.
-
-            Hierarchy of Access  
+Hierarchy of Access  
             Profiles and Permission Sets → Field-Level Security → OWD → Role Hierarchy → Sharing Rules → Manual Sharing.
-
             Example  
             OWD for Account = Private → Users see only their own Accounts.  
             Role Hierarchy → Sales Manager sees team’s Accounts.  
@@ -115,10 +568,60 @@ Is permissoin set override the profile permissions
       Permission Sets cannot remove or reduce permissions granted by a Profile.
 
 ==========================================================================================================================================================================================
+validation rule (video 10- 22 min)
+
+ISBLANK(expression) - Checks if a field is blank (empty)         
+          Works For: Text fields, picklists, and other field types.
+          
+ISNULL(expression) - Purpose: Checks if a field is NULL (no value).
+          Works For: Number, date, and other non-text fields.
+
+LEN(Text) in Salesforce is a formula function used to calculate the number of characters in a text string.   
+         Returns the length of a text field or string, including spaces and special characters.
+           example - LEN(Description) > 255
+PRIORVALUE() is a Salesforce formula function that returns the previous value of a field before the record was updated. It’s commonly used in validation rules,
+             workflow rules, and process automation.
+             Purpose
+                To compare the old value of a field with the new value during an update.
+                Useful for preventing certain changes or triggering actions only when a field changes.
+example -  Prevent changing Status from Approved to anything else:
+                                  AND(
+                                      ISCHANGED(Status__c),
+                                      PRIORVALUE(Status__c) = "Approved"
+                                  )
+
+==========================================================================================================================================================================================
+In Salesforce Apex, the default access modifier depends on what you are defining: (video 12)
+
+Classes → Default: public (namespace-level)
+This means if you do not explicitly specify public, private, or global, the class is accessible to all Apex code in the same namespace
+    but not outside the namespace (e.g., not exposed to other packages or external systems).
+Methods/Variables → Default: private
+   Meaning they are accessible only within the same class.
+
+every time we should follow same Syntax for declaring variable (video 12 time 10.12 seconds)
+       access modifier => data type => variable name 
+       example public string name ="jayendra"
+  
+      public class MyClass {
+          
+          // Instance variable
+          public String message;
+
+          // Constructor
+          public MyClass(String msg) {
+              message = msg;
+          }
+
+          // Method to display message
+          public void showMessage() {
+              System.debug('Message: ' + message);
+          }
+      }
 
 
-Data types
-
+==========================================================================================================================================================================================
+Field Data Types 
 Text: Stores alphanumeric characters up to a specified length.
 Number: Stores numeric values, can include decimals.
 Currency: Stores monetary values with currency symbol.
@@ -136,7 +639,6 @@ Master-Detail Relationship:
   Creates a tight parent-child relationship between two objects where the child (detail) record is dependent on the parent (master) record. The parent controls record
   ownership, sharing, and deletion (if the master is deleted, the detail is also deleted). It supports roll-up summary fields on the master object to aggregate data 
   from child recordsFormula: Calculates values dynamically based on other fields.
-
 Email: Stores email addresses.
 Phone: Stores phone numbers.
 URL: Stores website addresses.
@@ -153,87 +655,173 @@ Master-Detail Relationship => If we want to create for already present records
 option 1 - We have to delete existing records
 option 2 - We have to add first lookup fields then add value to the field then change to lookup to master detail field 
 ==========================================================================================================================================================================================
-✅ 1. Lookup Relationship
-  Purpose: Links two objects loosely (child can exist without parent).
-  Key Features:
-  Optional relationship; child record can have a null parent.
-  No roll-up summary fields.
-  Ownership and sharing are independent.
-Use Case: When you need a flexible link between objects (e.g., Contact linked to Account but can exist independently).
-✅ 2. Picklist
-  Purpose: Field type that stores a single value from a predefined list.
-  Key Features:
-  Used for categorization (e.g., Status = Open, Closed).
-  No object relationship; purely a field-level control.
-  Supports dependent picklists for dynamic filtering.
-Use Case: When you need controlled values for a field, not linking objects.
-✅ 3. Master-Detail Relationship
-  Purpose: Creates a strong (tightly)  parent-child relationship between two objects. we can add to the record once added cant update it that field
-  Key Features:
-  Child record cannot exist without parent.
-  Parent controls ownership, sharing, and deletion.
-  Supports roll-up summary fields on the master object.
-
-==========================================================================================================================================================================================
 Lighting mode 
   We can search object with label only
 
 In classic mode
   we can search object with label and API name
-==========================================================================================================================================================================================
+======================================================================TYPES OF RELATIONSHIPS IN SALESFORCE====================================================================================================================
 ✅ 1. Lookup Relationship
   Description: A loose association between two objects.
   Key Points:
-  Child can exist without a parent.
-  No cascade delete.
-  No roll-up summary fields.
-  Example: Contact linked to Account (but can exist independently).
+    Child can exist without a parent.
+    No cascade delete.
+    No roll-up summary fields.
+  Example: Contact linked to Account (but can exist independently). 
+  **Important**==>   How many lookup relationship can create in one object ==> No fixed limit
 
 ✅ 2. Master-Detail Relationship
   Description: A strong parent-child relationship.
   Key Points:
-  Child record cannot exist without parent.
-  Parent controls ownership, sharing, and deletion.
-  Supports roll-up summary fields on the master.
+    Child record cannot exist without parent.
+    Parent controls ownership, sharing, and deletion.
+    Supports roll-up summary fields on the master.
   Example: Invoice Line Items tied to Invoice.
+ **Important**==>  How many master detail relationship can create in one object ==> 2 
 
 ✅ 3. Many-to-Many Relationship
   Description: Achieved using a junction object with two master-detail relationships. we can reduce duplicate records with help of this
+  Super Simple Example
+            You have Students
+            You have Courses
+        One student can join many courses.
+        One course can have many students.
+
+    To connect them, we create a new object:
+    👉 Enrollment (this becomes the junction object)
+
+
   Key Points:
-  Allows linking multiple records from two objects.
-  Example: Students and Courses.
+    Allows linking multiple records from two objects.
+    Example: Students and Courses.
+    **Important**==>  Combined (lookup + master-detail) 40 (default) up to 50 (max)
 
+✅ 4. Hierarchical Relationship:
+    A special relationship available only in the User object. It allows one user to be related to another (for example, manager to employee).
+
+✅ 5.Self Relationship
+    A Lookup relationship where an object relates to itself.
+        Key Features:
+        Used to create hierarchical relationships within the same object.
+        Example:
+        Account → Parent Account
+        User → Manager (User object)
+===========================================================================================================================================================================================
 Delete Behavior
-junction records can delete from both the parents Student and Events
-    Because the junction object uses Master-Detail relationships, its records are dependent on both parents.
-    If either parent record is deleted, all related junction records are automatically deleted (cascade delete).
-    The other parent remains intact, but loses the link because the junction record is gone.
+    junction records can delete from both the parents Student and Events
+        Because the junction object uses Master-Detail relationships, its records are dependent on both parents.
+        If either parent record is deleted, all related junction records are automatically deleted (cascade delete).
+        The other parent remains intact, but loses the link because the junction record is gone.
 
-Example :- lets assume we have 2 parents Student and Event object and junction object (Student event info)
+Here is a **simple interview cheat sheet example using Student–Subject Junction Object** (very common in Salesforce interviews). 📄
+---
+# Student–Subject Junction Object (Interview Cheat Sheet)
 
-      1. If John (Student) is deleted:
-        All his related junction records (registrations) are deleted.
-        Events remain intact.
+## Objects
+    **Student (Master Object)**
+        | Student_ID | Name   |
+        | ---------- | ------ |
+        | S1         | Ravi   |
+        | S2         | Anjali |
 
-      2. If Salesforce Workshop (Event) is deleted:
-         All junction records for that event are deleted.
-         Students remain intact.
+    **Subject (Master Object)**
+        | Subject_ID | Subject |
+        | ---------- | ------- |
+        | SUB1       | Math    |
+        | SUB2       | Science |
+
+**Student_Subject (Junction Object)**
+    * Student (Master–Detail)
+    * Subject (Master–Detail)
+
+This creates a **Many-to-Many relationship**.
+    Student  ← Master
+            \
+                Student_Subject (Junction Object)
+            /
+
+        | Record_ID | Student | Subject |
+        | --------- | ------- | ------- |
+        | SS1       | S1      | SUB1    |
+        | SS2       | S1      | SUB2    |
+ 
+# 1️⃣ Insert Behavior (Interview Answer)
+When inserting a **Junction Object record**, **both master records must exist**.
+### Example Data
+            Now insert into **Student_Subject** (junciton object):
+            Meaning: Ravi is taking Math and Science.
+            ```
+            Ravi → Math
+            Ravi → Science
+            ```
+        | Record_ID | Student | Subject |
+        | --------- | ------- | ------- |
+        | SS1       | S1      | SUB1    |
+        | SS2       | S1      | SUB2    |
+✔ Insert rule
+        ```
+        Student_Subject must contain:
+        Student_ID
+        Subject_ID
+        ```
+If either is missing → **Record cannot be created** ❌
+---
+# 2️⃣ Delete Behavior (Cascade Delete)
+### Case 1 — Delete Student
+Delete **Student S1 (Ravi)**
+Before:
+    | Student | Subject | Student_Subject |
+    | ------- | ------- | --------------- |
+    | S1      | Math    | SS1             |
+    | S1      | Science | SS2             |
+
+    After deleting **S1**:
+    | Student | Subject | Student_Subject |
+    | ------- | ------- | --------------- |
+    | Deleted | Math    | Deleted         |
+    | Deleted | Science | Deleted         |
+
+✔ All related **junction records deleted automatically**
+Subjects remain.
+---
+### Case 2 — Delete Subject
+    Delete **Subject Math**
+    Before
+    | Student | Subject | Student_Subject |
+    | ------- | ------- | --------------- |
+    | Ravi    | Math    | SS1             |
+    After
+    | Student | Subject | Student_Subject |
+    | ------- | ------- | --------------- |
+    | Ravi    | Deleted | Deleted         |
+
+✔ Junction record removed automatically.
+Student remains.
+---
+# Case 3 — Delete Junction Record
+        Delete **SS1**
+        Before
+        ```
+        Ravi → Math
+        ```
+        After
+        ```
+        Ravi   Math
+        (No relationship)
+        ```
+        ✔ Student and Subject **still exist**
+        ✔ Only **relationship removed**
 
 Security control :- can have first have first parernt object (in this cases student object bacuase we have event lookup)
 
-✅ 4. Hierarchical Relationship
-  Description: Special lookup relationship available only on User object.
-  Key Points:
-  Used to create hierarchy among users (e.g., Manager → Employee).
-
-✅ 5. External Lookup & Indirect Lookup
+✅ 6. External Lookup & Indirect Lookup
   Description: Used to link external objects (from external systems) to Salesforce objects.
   Key Points:
   External Lookup links external object to standard/custom object.
   Indirect Lookup links external object to Salesforce object using an external ID.
 
 ==========================================================================================================================================================================================
-why if Account record deleted then contact and oppportunites deleting?
+ **Important**==>  why if Account record deleted then contact and oppportunites deleting?
 
 The relationship between Account → Opportunity (and some other standard objects) appears as a Lookup relationship in the schema.
 
@@ -261,11 +849,6 @@ Sum the Opportunity Amounts.
 Find the latest Opportunity Close Date.
 
 ==========================================================================================================================================================================================
-How many master detail relationship can create in one object ==> 2 
-How many lookup relationship can create in one object ==> No fixed limit
-Combined (lookup + master-detail)40 (default), up to 50 (max)
-==========================================================================================================================================================================================
-
 search  in home of setup ->
 Schema Builder (Setup=>Home=>Quick find => Schema Builder) - Salesforce Schema Builder is a visual, drag-and-drop tool that lets 
 administrators and developers design, visualize,and manage the data model (objects, fields, and relationships) in their Salesforce org through a graphical interface,
@@ -276,7 +859,8 @@ abs ==> you can get new tab with objects
 
 lookup relationship - create a relationship to connects two objects loosely, allowing a child record to point to a parent record
  (like an Account to a Contact, or a custom object to a User) for data sharing, but the child can exist independently.
- it's defined on the child object by creating a new "Lookup Relationship" field, linking to the parent object, enabling easy data association without strict dependency or automatic deletion (unlike Master-Detail). 
+ it's defined on the child object by creating a new "Lookup Relationship" field, linking to the parent object, enabling easy data association
+ without strict dependency or automatic deletion (unlike Master-Detail). 
 
 Key Characteristics:
 Loose Coupling: Child records aren't deleted if the parent is deleted (unless configured otherwise).
@@ -286,7 +870,7 @@ No Roll-Up Summaries: Cannot use Roll-Up Summary fields, which are a Master-Deta
 Creation: Created on the child object by selecting "Lookup Relationship" as the field type and choosing the parent object. 
 ==========================================================================================================================================================================================
 Day 6 video after 1:10
-while creating Lighting pages we have multiple options to add the standard components in that heightlight panel also called compact layout
+while creating Lighting pages we have multiple options to add the standard components in that heighlight panel also called compact layout
 
 1:14
 FlexiPage - In Salesforce, a FlexiPage is the technical name for a Lightning Page. It’s a metadata component that defines the layout and components of a page
@@ -297,6 +881,21 @@ Lightning App Builder - we can check all the pages which we have created
       The Lightning App Builder provides an easy to use graphical interface for creating custom Lightning pages for Salesforce Lightning Experience and mobile app.
       Lightning pages are built using Lightning components—compact, configurable, and reusable elements that you can drag and drop into regions of the page in 
       the Lightning App Builder.
+
+Lightning Pages
+    1.Home Page
+        The landing page for users when they log in.
+        Can show dashboards, tasks, and custom components
+  
+    2.App Page
+        An App Page is a custom page built using Lightning App Builder.
+        A custom page for a specific app, combining multiple components.
+    Example: A Sales app page with pipeline charts and quick links.
+
+    3.Lightning Record Page
+        A customizable page in Lightning Experience using Lightning App Builder.
+        You can add components like charts, related lists, and custom widgets.
+       example Highlights Panel,tabs (Details, Related),Activities,Related Lists.
 ==========================================================================================================================================================================================
 Day 6 video after 6:30 sec
 What Is a Page Layout in Salesforce?
@@ -313,30 +912,13 @@ What is pages?
 it is components management A Page is essentially the user interface for viewing, editing, or creating records, dashboards, or apps.
 It determines what components, fields, and actions are visible.and interacted with.
 ✅ Types of Pages (in simple words):
-
 Page Layout
     Defines the arrangement of fields, sections, buttons, and related lists on a record detail page.
     Example: How an Account record looks when you open it.
  
-
-Lightning Pages
-    1.Home Page
-        The landing page for users when they log in.
-        Can show dashboards, tasks, and custom components
-  
-    2.App Page
-        An App Page is a custom page built using Lightning App Builder.
-        A custom page for a specific app, combining multiple components.
-    Example: A Sales app page with pipeline charts and quick links.
-
-    3.Lightning Record Page
-        A customizable page in Lightning Experience using Lightning App Builder.
-        You can add components like charts, related lists, and custom widgets.
-       example Highlights Panel,tabs (Details, Related),Activities,Related Lists.
-
 Classic mode page
       Visualforce Page
-          clasic mode will open visualforce page 
+         clasic mode will open visualforce page 
           A page built using Visualforce markup for custom UI.
           Example: A custom form or integration screen.
 
@@ -462,26 +1044,6 @@ object-level permissions (like Read/Create/Edit/Delete), RLS determines access t
 Sharing Settings also called OWD below is the path
 setup -> Home -> Sharing Settings
 
- ✅ Components of Record Level Security 
-        1.  Organization-Wide Defaults (OWD)
-              Sets the baseline access for all users on each object (e.g., Private, Public Read Only, Public Read/Write).
-              Example: If Contacts are Private, users only see records they own (or those shared with them).
-        2.  Role Hierarchy
-              Users higher in the hierarchy inherit access to records owned by users below them.
-              Example: A Sales Manager can see records owned by their team.
-        3.  Sharing Rules
-              Used to open up access beyond OWD.
-              Types:
-                  Owner-based: Share records owned by certain roles/groups.
-                  Criteria-based: Share records meeting certain field criteria.
-
-        4.  Manual Sharing
-              Record owner or admin can share a specific record with another user.
-        5.  Teams
-              Account Teams, Opportunity Teams, Case Teams allow sharing related records with team members.
-        6.  Apex Managed Sharing
-
-
 What is OWD (video 9 53.50 seconds) 
   (IMP)it is 2 steps process first we need to change owd type in Sharing Settings then remove the the view all, modify all permission in profile 
       OWD (Organization-Wide Defaults) in Salesforce is the baseline level of access that all users have to records in your organization for each object.
@@ -490,10 +1052,14 @@ What is OWD (video 9 53.50 seconds)
 ================================================================================Sandbox configureed==================================================================================================================================
 Key Permissions That Cause issue, below permission should be false
 
-      View All (object-level): Grants read access to all records of that object.
-      Modify All (object-level): Grants full access to all records of that object.
-      View All Data (system-level): Grants read access to all records in the org.
-      Modify All Data (system-level): Grants full access to all records in the org.
+    Profile → Object Settings → Choose Object → Edit
+        View All (object-level): Grants read access to all records of that object.
+        Modify All (object-level): Grants full access to all records of that object.
+
+    Profile → System Permissions → Edit
+        View All Data (system-level): Grants read access to all records in the org.
+        Modify All Data (system-level): Grants full access to all records in the org.
+
     important Note :- if profile has any permission like read write, we cant override with below things
 
 OWD config
@@ -502,7 +1068,7 @@ OWD config
 Sharing Rules
     1. owner base sharing 
         open Sharing Settings (OWD)
-                1.college object updated with private or  Public Read Only  -> once you update the object you can get sharing rule of that object(college sharing rule)
+                1.college object updated with private or Public Read Only  -> once you update the object you can get sharing rule of that object(college sharing rule)
                 2.public group created / assign role wise - User Public Group ==> added admin user
                 3.Sharing rule created - College Sharing Rule ==>  owned by members of group ==> User Public Group==>  Share with ==> other user which	Role = COO
                   ==> Access Level = Read/Write
@@ -552,46 +1118,694 @@ Types of OWD
      In Salesforce, child records in a Master-Detail relationship inherit the sharing and security settings of the parent object.
 
 ====================================================================================================================================================================================================================================================================================================================================================================================
+validation rule video 10
+
+Validation Rules in Salesforce are rules that help maintain data quality and enforce business logic by preventing users from saving records that do not meet
+specific criteria.
+
+What is ISCHANGED()?
+  ISCHANGED(field) is a Salesforce function used in validation rules, workflow rules, and formula fields to check if a specific field’s value has changed during an update.
+Here’s the **Salesforce Formula Functions Cheat Sheet with Real-World Validation Rule Examples** in plain text:
+
+What does ISNEW() do?
+  It checks whether the current record is being created (new) rather than updated.
+  Returns TRUE when the record is new (during creation).
+  Returns FALSE when the record is being edited (update).
+        
+      **1. Mandatory Field on Record Creation**  
+      Make Phone mandatory when creating a new Contact:
+
+          AND(
+              ISNEW(),
+              ISBLANK(Phone)
+          )
+
+What is CASE() in Salesforce?
+    CASE() is a formula function in Salesforce used to perform conditional logic similar to a switch statement in programming. It evaluates an expression against multiple
+    possible values and returns a corresponding result.
+    Syntax -    CASE(expression, value1, result1, value2, result2, ..., else_result)
+    Example - AND(CASE(Industry, 'Banking', 1, 'Education', 1,'Finance',1,2) = 1, ISBLANK( Phone ))
+
+child to parent rule created in contact based on banking Industry -ISPICKVAL(Account.Industry, 'Banking')
+parent to child we cant cread rule we need, trigger for this
+
+ISBLANK(expression) - Checks if a field is blank (empty)     - reach text area will not work for this    
+          Works For: Text fields, picklists, and other field types.
+
+ISNULL(expression) - Purpose: Checks if a field is NULL (no value).
+          Works For: Number, date, and other non-text fields.
+ISCHANGED()
+ISNEW()
+ISPICKVAL() -  Checks if a picklist field equals a specific value.
+PRIORVALUE() - Returns the previous value of a field before the update.
+
+      **2. Prevent Stage Change Backwards**  
+      Do not allow Opportunity Stage to move from “Closed Won” back to “Prospecting”:
+
+          AND(
+              ISPICKVAL(StageName, "Prospecting"),
+              PRIORVALUE(StageName) = "Closed Won"
+          )
+
+3. Amount Must Be Positive**  
+Ensure Opportunity Amount is greater than zero:
+
+      Amount <= 0
+4. Close Date Cannot Be in the Past**  
+    Prevent setting Close Date earlier than today:
+    CloseDate < TODAY()
+
+5. Prevent Changing Account Name After Creation**  
+Do not allow edits to Account Name after record creation:
+    AND(
+        ISCHANGED(Name),
+        NOT(ISNEW())
+    )
+
+6. Require Email if Phone is Blank**  
+Ensure at least one contact method is provided:
+
+    AND(
+        ISBLANK(Phone),
+        ISBLANK(Email)
+    )
+
+**7. Discount Cannot Exceed 20%**  
+If Discount field exists, ensure it’s ≤ 20%:
+
+    Discount__c > 0.20
+
+**8. Prevent Closing Opportunity Without Amount**  
+Do not allow Stage = “Closed Won” if Amount is blank:
+
+    AND(
+        ISPICKVAL(StageName, "Closed Won"),
+        ISBLANK(Amount)
+    )
+
+**9. Validate Picklist Change**  
+Prevent changing Status from “Approved” to anything else:
+
+    AND(
+        ISCHANGED(Status__c),
+        PRIORVALUE(Status__c) = "Approved"
+    )
+
+**10. Ensure Numeric Field is Valid**  
+Check if a custom field is a number:
+    NOT(ISNUMBER(Custom_Field__c))
+==========================================================================================================================================================================================
+What is apex video 11
+**What is Apex?**  
+Apex is a strongly typed, object-oriented programming language developed by Salesforce. It is used to write custom business logic on the Salesforce platform. 
+Apex runs on Salesforce servers and is integrated with the platform’s database and UI.
+
+  Direct and Indirect Instance of clasic covered in below example its important to know
+      public class GreetingClass {
+          public String name;
+
+          // Constructor
+          public GreetingClass(String userName) {
+              name = userName;
+          }
+
+          // Constructor
+         public GreetingClass() {
+              name = 'Alex';
+          }
+
+          // Method
+          public void sayHello() {
+              System.debug('Hello, ' + name + '!');
+          }
+
+       // Method 2
+          public static void sayGood() {
+              System.debug('I am good');
+          }   
+      }
+      
+      GreetingClass greet = new GreetingClass('Adam');
+       1.Direct Instance example - video 12(1:35 min)
+         GreetingClass.sayGood() // I am good ==> we can't call multiple time
+              GreetingClass greet2 = new GreetingClass('Adam'); // reference changed
+              GreetingClass.sayGood() // I am good ==> we can call multiple time if reference is changed
+       2.Indirect Instance video 12(1:35 min)
+         greet.sayHello(); // Output: Hello, Adam!
+         greet.sayHello(); // Output: Hello, Adam!
+         
+  
+**Features of Apex**
+            1.  **Strongly Typed Language**
+                *   Variables must be declared with a specific data type.
+
+            2.  **Object-Oriented**
+                *   Supports classes, objects, inheritance, polymorphism, and interfaces.
+
+            3.  **Integrated with Salesforce**
+                *   Direct access to Salesforce data using SOQL and DML operations.
+
+            4.  **Java-like Syntax**
+                *   Easy for developers familiar with Java to learn.
+
+            5.  **Hosted on Salesforce Servers**
+                *   Runs in a secure, multi-tenant environment.
+
+            6.  **Supports Triggers**
+                *   Executes custom logic before or after database operations.
+
+            7.  **Transaction Control**
+                *   All DML operations run in a single transaction; rollback is possible.
+
+            8.  **Built-in Testing Framework**
+                *   Provides unit testing with `@isTest` annotation.
+
+            9.  **Versioned and Upgradable**
+                *   Automatically upgraded with Salesforce platform releases.
+
+            10. **Supports Web Services**
+                *   Can expose classes as REST or SOAP services.
+
+            11. **Governor Limits**
+                *   Enforces limits on resources to ensure fair usage in multi-tenant architecture.
+
+            12. **Batch and Scheduled Processing**
+                *   Handles large data volumes using Batch Apex and Scheduled Apex.
+
+**Key Features:**
+*   Syntax similar to Java
+*   Executes in a multi-tenant environment
+*   Used for triggers, classes, web services, batch jobs, and scheduled tasks
+
+***
+### **Apex Data Types**
+    Primitives → String, Integer, Boolean, Decimal, Double, Id, Date, Datetime, Blob
+    sObjects → Account, Contact, CustomObject__c
+    Collections → List, Set, Map
+    Others → Enum, Class, Interface, Exception (e.g., objects, classes, interface)
+    ==========================================================================================================================================================================================
+In Salesforce (specifically Apex), **access modifiers** control the visibility and accessibility of classes, methods, and variables. Here’s a plain text summary:
+***
+### **Access Modifiers in Salesforce Apex**
+
+1.  **public**
+    *   Accessible by any Apex code in the same namespace.
+    *   Not automatically exposed to other namespaces or external apps.
+
+2.  **private**
+    *   Accessible only within the same class.
+    *   Default modifier if none is specified.
+
+3.  **protected**
+    *   Accessible within the same class and its subclasses (inheritance).
+    *   Useful for extending functionality in child classes.
+
+4.  **global**
+    *   Accessible everywhere, including outside the namespace (e.g., managed packages).
+    *   Use with caution because it exposes code broadly.
+
+5.  **webService**
+    *   Used to expose methods as SOAP web services.
+    *   Typically combined with `global` for external access.
+
+6.  **testMethod**
+    *   Special keyword for defining test methods (deprecated in favor of `@isTest` annotation).
+
+***
+
+### **Key Points**
+*   **Classes** can be `public`, `private`, or `global`.
+*   **Methods and variables** can use `public`, `private`, `protected`, or `global`.
+*   **Default** for classes is `public` (within namespace), and for methods/variables is `private`.
+
+==========================================================================================================================================================================================
+Apex class contains
+  An Apex class can contain **variables, constructors, methods, properties, inner classes, static blocks, and custom exceptions**.
+
+An Apex class in Salesforce can contain the following components:
+1.  **Class Declaration**  
+    Defines the class name and access modifier.  
+    Example:  
+    `public class MyClass { }`
+
+2.  **Variables (Fields)**  
+    Instance or static variables to store data.  
+    Example:  
+    `public String name;`  
+    `private static Integer count;`
+
+3.  **Constructors**  
+    Special methods to initialize objects.  
+    Example:  
+    `public MyClass(String n) { name = n; }`
+
+4.  **Methods**  
+    Functions that define behavior.  
+    Example:  
+    `public void displayName() { System.debug('Name: ' + name); }`
+
+5.  **Properties**  
+    Getter and Setter for encapsulation.  
+    Example:  
+    `public String Name { get { return name; } set { name = value; } }`
+
+6.  **Inner Classes**  
+    Classes defined inside another class.  
+    Example:  
+    `public class InnerClass { public void innerMethod() { System.debug('Inside inner class'); } }`
+
+7.  **Static Initialization Blocks**  
+    Code that runs once when the class is loaded.  
+    Example:  
+    `static { count = 0; }`
+
+8.  **Interfaces and Implementations**  
+    A class can implement interfaces.  
+    Example:  
+    `public class MyClass implements MyInterface { public void doSomething() { } }`
+
+9.  **Exception Classes**  
+    Custom exceptions can be defined inside a class.  
+    Example:  
+    `public class MyException extends Exception { }`
+
+In short: An Apex class can contain variables, constructors, methods, properties, inner classes, static blocks, interface implementations, and custom exceptions.
+
+==========================================================================================================================================================================================
+What is an Exception in Apex? video 13 A (10.05 min)
+An exception represents an error that disrupts normal flow. In Apex:
+        All exceptions derive from Exception (base class).
+        They’re unchecked (no throws declaration needed).
+        You handle them with try { } catch (ExceptionType e) { } finally { }.
+        Some (notably LimitException) cannot be caught.
+
+
+1) SObjectException - Accessing fields not present in the queried sObject or invalid operations.
+        try {
+            // Name not selected – accessing it throws SObjectException
+            Account a = [SELECT Id FROM Account LIMIT 1];
+            String n = a.Name;
+        } catch (SObjectException e) {
+            System.debug('SObject field access issue: ' + e.getMessage());
+        }
+
+2) DmlException
+        Thrown on failed DML (insert/update/delete) when not using Database.* methods. 
+        try {
+            Account a = new Account(); // Missing required Name
+            insert a;
+        } catch (DmlException e) {
+            System.debug('DML failed: ' + e.getMessage());
+            System.debug(e.getDmlFieldNames(0)); // which fields failed on first record
+        }
+
+3) QueryException
+Thrown by SOQL/SOSL issues (e.g., query returns no rows with querySingleResult or invalid relationship).
+            try {
+                // Will throw if no record matches
+                Account a = [SELECT Id, Name FROM Account WHERE Name = 'NoSuch' LIMIT 1];
+            } catch (QueryException e) {
+                System.debug('Query error: ' + e.getMessage());
+            }
+
+4) NullPointerException - Dereferencing a null variable.
+        Account a; // null
+        try {
+            String s = a.Name; // boom
+        } catch (NullPointerException e) {
+            System.debug('Null reference: ' + e.getMessage());
+        }
+
+5) ListException / StringException / TypeException / MathException   - Data-structure or math errors.
+            // ListException
+            try {
+                List<Integer> xs = new List<Integer>();
+                Integer i = xs[0];
+            } catch (ListException e) {
+                System.debug('List error: ' + e.getMessage());
+            }
+
+            // MathException
+            try {
+                Decimal r = 1 / 0;
+            } catch (MathException e) {
+                System.debug('Math error: ' + e.getMessage());
+            }
+6) CalloutException - Issues during HTTP callouts (timeouts, unpermitted callouts). 
+        try {
+            HttpRequest req = new HttpRequest();
+            req.setEndpoint('https://example.com');
+            req.setMethod('GET');
+            Http h = new Http();
+            HTTPResponse res = h.send(req); // Can throw CalloutException
+        } catch (CalloutException e) {
+            System.debug('Callout failed: ' + e.getMessage());
+        }
+7) JSONException / XmlException / RegexException
+        // JSONException
+        try {
+            JSON.deserializeUntyped('{"a": }'); // invalid JSON
+        } catch (JSONException e) {
+            System.debug('JSON parse error: ' + e.getMessage());
+        }
+8) EmailException
+            Errors when sending email programmatically.
+            try {
+                Messaging.SingleEmailMessage m = new Messaging.SingleEmailMessage();
+                m.setToAddresses(new String[]{'invalid@domain'});
+                m.setSubject('Hi');
+                m.setPlainTextBody('Body');
+                Messaging.sendEmail(new List<Messaging.SingleEmailMessage>{ m });
+            } catch (EmailException e) {
+                System.debug('Email send error: ' + e.getMessage());
+            }
+9) AsyncException
+Problems with asynchronous execution (e.g., enqueuing/queueable/cron issues).
+
+        try {
+            System.enqueueJob(new MyQueueable()); // If something invalid, can throw
+        } catch (AsyncException e) {
+            System.debug('Async error: ' + e.getMessage());
+        }
+
+Creating Custom Exceptions
+Create your own types by extending Exception to make error handling explicit and meaningful.
+
+        public class PaymentException extends Exception {}
+        public class InsufficientFundsException extends PaymentException {}
+
+        public class PaymentService {
+            public static void charge(Decimal amount) {
+                if (amount <= 0) {
+                    throw new PaymentException('Amount must be positive');
+                }
+                if (amount > 1000) {
+                    throw new InsufficientFundsException('Limit exceeded');
+                }
+                // proceed...
+            }
+        }
+
+==========================================================================================================================================================================================
+LIST CLASS IN SALESFORCE (APEX)
+        A List in Apex is an ordered collection of elements.
+        It is similar to an array but more flexible.
+   
+        Example:
+        List nums = new List();
+public class ListExamplesClass {
+  public void ShowNumberList(){
+     List<Integer> nums = new List<Integer>();
+    //add method
+            nums.add(10);
+            system.debug(nums); // DEBUG|(10)
+   // addAll:
+         nums.addAll(new List<Integer>{30, 40});
+         system.debug(nums); // DEBUG|(10, 30, 40)
+   // Get item:
+       	system.debug(nums[1]); // DEBUG|(30)
+   // Update item:     
+            nums[0] = 100;
+            system.debug(nums); // DEBUG|(100, 30, 40)
+    //Remove item (by index):
+        nums.remove(0);     // empty
+    //Size
+        system.debug(nums.size()); // 2
+    //isEmpty
+        system.debug(nums.isEmpty());   //false
+    //contains
+        system.debug(nums.contains(30));   // true 
+     //clone
+        List<integer>copy = nums.clone();
+            system.debug(copy);   // DEBUG|(100, 30, 40)
+      //sort
+        List<Integer> numbers = new List<Integer>{5, 2, 9, 1};
+            numbers.sort();
+          system.debug(numbers); // nums is now [1, 2, 5, 9]
+        List<String> names = new List<String>{'Zed', 'anna', 'Bob'};
+        system.debug(names);names.sort(); // Case-sensitive lexicographic: 'Bob', 'Zed', 'anna'
+
+    }    
+  
+}
+
+LIST WITH SOBJECTS
+    List accList = new List();
+    accList.add(new Account(Name='ABC'));
+    insert accList;
+
+LIST FROM SOQL
+  List accs = [SELECT Id, Name FROM Account LIMIT 5];
+LIST IN LOOPS
+    List names = new List{'A','B','C'};
+    for (String n : names) {
+    System.debug(n);
+    }
+==========================================================================================================================================================================================
+Gettter and setter methods
+public class getterSetterClass {
+
+    // Property with auto getter & setter
+    public String studentName { get; set; }
+
+ // private variable used by getter/setter
+     private Integer studentAge;
+    
+    // Custom getter
+    public String greeting {
+        get {
+            return 'Hello, ' + studentName;
+        }
+    }
+    // Custom setter
+    public Integer age {
+        get {
+            return studentAge;
+        }
+        set {
+            // value = the number being passed
+            if (value > 0) {
+                studentAge = value;
+            } else {
+                studentAge = 0;   // default
+            }
+        }
+    }
+   
+}
+/* getterSetterClass sc = new getterSetterClass();
+    // uses setter
+    sc.studentName = 'Jayendra'; 
+    sc.age = -5;  // setter sets to 0
+
+    System.debug(sc.studentName);   // Jayendra
+    System.debug(sc.age=10);           // 10
+    System.debug(sc.greeting);      // Hello, Jayendra
+*/
+==========================================================================================================================================================================================
+Salesforce object query language(SOQL)
+    SOQL stands for Salesforce Object Query Language.
+    It is the language used in Salesforce to query records from objects (like Account, Contact, Opportunity), similar to SQL but more restricted.
+    SOQL is used to:
+        Retrieve data from Salesforce objects
+        Filter data
+        Sort data
+        Fetch related records (parent/child relationships)
+    It is used inside:
+     Apex classes
+        Triggers
+        Developer Console
+        API calls
+        Flow (Get Records internally uses SOQL)
+
+        College__c clg=new College__c();
+        clg.Name = 'New College';
+        clg.No_of_students__c=60;
+        insert clg;
+
+    College__c clg2 = [select Name, CreatedById from College__c WHERE Name = 'New College'];
+    system.debug(clg2);
+
+    LIST <College__c> clg2 =[select Name, CreatedById from College__c ORDER BY Name DESC LIMIT 5];
+    system.debug(clg2);
+
+    LIST <College__c> clg2 =[select Name, CreatedById from College__c LIMIT 5];
+    system.debug(clg2);
+
+==========================================================================================================================================================================================
+what does it do in partial success
+    **Partial success** happens when you use Database methods like `Database.insert`, `Database.update`, `Database.delete`, etc., with `allOrNone = false`.
+
+    It means Salesforce will try to process each record one by one.  
+    If some records are valid, they will be saved.  
+    If some records have errors, only those records fail.  
+    The successful records are still committed.
+So:
+    *   Good records = saved
+    *   Bad records = failed
+    *   No rollback of the entire operation
+        Return detailed results for each record
+        Every record gets a result object: isSuccess(),getId(),getErrors()
+❌ Without partial success (allOrNone = true)
+            If even one record fails:
+            All records roll back.
+            No DML is committed.
+example
+    List<Account> accs = new List<Account>{
+        new Account(Name='Valid A'),
+        new Account(Name=null),        // ❌ Missing required field
+        new Account(Name='Valid C')
+    };
+Database.SaveResult[] results = Database.insert(accs, false);
+==========================================================================================================================================================================================
+In Apex, the Database class gives you fine-grained control over DML and query behavior—especially useful for partial success, custom headers, batching, 
+and dynamic SOQL. Below is a practical, comprehensive rundown of the Database methods you’ll actually use day-to-day, grouped by category, with signatures,
+what they return, and pitfalls to avoid—plus bite-sized examples    
+1) DML Methods (CRUD+)
+All of these support partial success via allOrNone=false and can use Database.DMLOptions (e.g., assignment rules, email headers).
+        Signatures
+            Database.SaveResult insert(SObject recordToInsert, Boolean allOrNone)
+            Database.SaveResult[] insert(List<SObject> recordsToInsert, Boolean allOrNone)
+            
+1. Database.insert()
+    Meaning: Saves new records into Salesforce, but allows partial success.  
+    Example: You try to insert 10 Accounts. Even if 2 fail, remaining 8 still get saved.
+      Returns: SaveResult / SaveResult[] with isSuccess(), getId(), getErrors()
+         
+        // Sample records
+        List<Account> accts = new List<Account>{
+            new Account(Name = 'Acme Corp'),
+            new Account(Name = null) // will fail due to required Name
+        };
+
+        // allOrNone = true (entire operation succeeds or fails as one unit)
+        try {
+            Database.SaveResult[] srFalse  = Database.insert(accts, /*allOrNone*/ false);
+            // If we got here, all rows succeeded
+                for (Integer i = 0; i < srFalse.size(); i++) {
+                    if (srFalse[i].isSuccess()) {
+                        System.debug('Inserted Id: ' + srFalse[i].getId());
+                    } else {
+                        for (Database.Error err : srFalse[i].getErrors()) {
+                            System.debug('Row ' + i + ' failed: ' + err.getMessage());
+                        }
+                    }
+                }
+        } catch (DmlException e) {
+            // Any single failure aborts the entire operation
+            System.debug('Insert failed for all: ' + e.getMessage());
+        }
+
+2.Database.update()
+    Meaning: Updates existing records, allows partial success.  
+// Query some accounts to update
+        List<Account> acctsToUpdate = [SELECT Id, Name FROM Account LIMIT 2];
+                if (!acctsToUpdate.isEmpty()) {
+                    acctsToUpdate[0].Phone = '111-1111';
+                    if (acctsToUpdate.size() > 1) acctsToUpdate[1].Name = null; // cause failure
+                        Database.SaveResult[] upFalse = Database.update(acctsToUpdate, false);
+                }
+
+3.  Database.upsert()
+    Meaning: Inserts new records or updates existing ones based on Id or external Id.  
+        Example: If an Account has no Id, it gets created. If it has an Id, it gets updated.
+            List<Account> upserts = new List<Account>{
+                new Account(Id = 'EXT-1001', Name = 'New Or Update 1001'),
+                new Account(Id = 'EXT-1002', Name = 'New Or Update 1002')
+            };
+     Database.UpsertResult[] usFalse = Database.upsert(upserts, Account.Id, false);   
+
+4.  Database.delete()
+    Meaning: Deletes records, allows partial success.  
+    Example: You delete 3 Leads. Even if 1 has a validation error, the other 2 delete.
+    
+            // Create sample leads then delete them
+            List<Lead> leads = new List<Lead>{
+                new Lead(LastName='Delete Me A', Company='X'),
+                new Lead(LastName='Delete Me B', Company='Y')
+            };
+            insert leads;
+            // allOrNone = false
+    Database.DeleteResult[] delFalse = Database.delete(leads, false);
+           
+5.  Database.undelete()
+    Meaning: Restores deleted records from Recycle Bin.  
+
+    // Prepare: insert then delete to move records to Recycle Bin
+    Contact c = new Contact(LastName = 'Restore Test');
+    insert c;
+    delete c;
+
+    Example: You recover a deleted Contact from the Recycle Bin.      
+      // Query deleted rows using ALL ROWS
+        List<Contact> deletedContacts = [SELECT Id, IsDeleted FROM Contact WHERE IsDeleted = true AND Id = :c.Id ALL ROWS];
+        // allOrNone = false
+        Database.UndeleteResult[] undFalse = Database.undelete(deletedContacts, false);
+6.  Database.merge()
+    Meaning: Combines duplicate records into one.  
+        Example: You merge duplicate Accounts, keeping one master record.
+            // Create master and duplicate accounts to merge
+            Account master = new Account(Name='Merge Master');
+            Account dupe1  = new Account(Name='Merge Master');
+            Account dupe2  = new Account(Name='Merge Master');
+            insert new List<Account>{ master, dupe1, dupe2 };
+            
+        // allOrNone = false (partial success allowed)
+        Database.MergeResult mrFalse = Database.merge(master, new List<Account>{ dupe1, dupe2 }, false);
+
+7.  Database.convertLead()
+    Meaning: Converts a Lead into an Account, Contact, or Opportunity.  
+    Example: You convert a sales Lead into a Contact and an Opportunity.
+
+8.  Database.emptyRecycleBin()
+    Meaning: Permanently deletes records from the Recycle Bin.  
+    Example: You permanently remove 50 deleted Accounts so they cannot be recovered.
+
+==========================================================================================================================================================================================
+Can you explain how Salesforce releases work?
+As a SaaS platform, Salesforce delivers updates to your system automatically. The major releases happen three times a year, with some other,
+much smaller updates delivered in between.
+
+The major releases are labeled, Spring, Summer, and Winter, with the fiscal Salesforce year following the name, e.g. “Salesforce Winter ’26 Release”.
+Each release will have a huge amount of features and updates included across all of the major Salesforce products.
+
+2. What are the main benefits of a cloud solution like Salesforce?
+Salesforce is a Cloud SaaS platform (Software-as-a-Service), which means you access it through your web browser, as opposed to a desktop application.
+ You’re also able to access it through a mobile application on both major platforms (Android and iOS). 
+ Some of the biggest benefits of cloud computing solutions include:
+    Cost: 
+    Upgrades:
+    Mobility:  
+
+ 3.Salesforce has an App Store similar to an iPhone. What is this called? Can you name some apps you have used in the past?
+   The Salesforce App Store is called the **AppExchange**. It’s a marketplace where you can find and install third-party applications that integrate with
+   Salesforce to extend its functionality. Some popular apps on the AppExchange include:
+   e-Signature, Document Generation, and Form tools
+ 4.What is a Queue in Salesforce?
+    A Queue in Salesforce is a way to manage and prioritize work items (like cases, leads, or custom objects) that need to be processed by a group of users. 
+    When a record is assigned to a queue, any member of that queue can take ownership of the record and work on it. 
+    This helps ensure that tasks are handled efficiently and by the appropriate team members.   
+
+ 5.Describe the differences between Lightning Pages, Page Layouts, and Record Types  
+   Lightning Pages: These are customizable pages in the Lightning Experience that allow you to design the user interface using components.
+   You can create different Lightning Pages for different profiles or record types, and they can include various components like related lists, charts, and custom
+   components.
+   Page Layouts: These control the layout and organization of fields, sections, buttons, and related lists on a record detail page. Page Layouts are 
+   assigned to profiles and determine how the fields are displayed and which fields are required or read-only.
+   Record Types: These allow you to create different business processes, picklist values, and page layouts for different types of records within the same object.
+                 Record Types are used to differentiate between various types of records (e.g., different types of accounts or cases) and can be assigned to profiles
+                 to control which users can create or view certain record types.
+6. Describe a few ways that Account and Contact information can be imported into Salesforce?
+    Data Loader:
+    Dataloader.io:
+    Data Import Wizard: 
+7. Describe the different ways to make a field required in Salesforce?
+    Page Layout : Mark the field as required on the page layout, which will enforce it when users create or edit records through the UI.
+    Validation Rule : Create a validation rule that checks if the field is blank and prevents saving the record if it is.
+    Apex Trigger : Write an Apex trigger that checks for the field’s value before allowing a record to be inserted or updated.
+    Custom Field Settings: Whenever you create a new custom field, you have the option to make this required. 
+    Field Level Security : Make the field required at the profile level, which applies to all records for users with that profile.
+   
 
 ==========================================================================================================================================================================================
 ==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-==========================================================================================================================================================================================
-

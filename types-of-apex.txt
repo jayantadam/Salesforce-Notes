@@ -1,0 +1,243 @@
+- Perfect 👍
+Here is everything combined in one single response for interview preparation:
+
+ 5️⃣ Important Errors Explained
+    ❗Mixed DML Error   
+    Occurs when:
+    • Setup Object (User, Profile)
+    • Non-Setup Object (Account, Contact)
+    Are updated in same transaction.
+    👉 Solution:
+    Use Future or Queueable.
+⸻
+
+❗ “You have uncommitted work pending”
+Occurs when:
+• DML before Callout in same transaction (especially in trigger)
+👉 Solution:
+Move callout to Future/Queueable.
+
+⸻
+
+🔹 6️⃣ Best Practice – Named Credential
+
+Instead of:
+req.setEndpoint('https://api.example.com/account');
+Use:
+req.setEndpoint('callout:My_Named_Credential/account');
+
+Why?
+✅ Secure
+✅ No hardcoded URL
+✅ Handles authentication
+
+We will cover:
+
+1️⃣ Future Method (Update + External API)
+2️⃣ Queueable (Update + External API – Recommended)
+3️⃣ Batch Apex
+4️⃣ Scheduled Apex
+5️⃣ Mixed DML & Uncommitted Work Explanation
+6️⃣ Best Practice (Named Credential)
+
+⸻
+
+🔹 1️⃣ @future Method (Update + External API)
+
+👉 Used for simple async callout.
+
+public class AccountFutureCallout {
+
+   @future(callout=true)
+   public static void updateAndSendToAPI(Id accId) {
+
+       Account acc = [SELECT Id, Name, Description 
+                      FROM Account 
+                      WHERE Id = :accId LIMIT 1];
+
+       // Update record
+       acc.Description = 'Sent via Future';
+       update acc;
+
+       // Callout
+       Http http = new Http();
+       HttpRequest req = new HttpRequest();
+       req.setEndpoint('https://api.example.com/account');
+       req.setMethod('POST');
+       req.setHeader('Content-Type', 'application/json');
+       req.setBody(JSON.serialize(acc));
+
+       HttpResponse res = http.send(req);
+   }
+}
+
+▶️ Call:
+
+AccountFutureCallout.updateAndSendToAPI(acc.Id);
+
+✅ Static
+✅ Only primitive parameters
+❌ No return type
+
+⸻
+
+🔹 2️⃣ Queueable Apex (Recommended for Callouts)
+
+👉 Better than Future (supports chaining & complex types).
+
+public class AccountQueueableCallout implements Queueable, Database.AllowsCallouts {
+
+   private Id accId;
+
+   public AccountQueueableCallout(Id accId){
+       this.accId = accId;
+   }
+
+   public void execute(QueueableContext context) {
+        System.debug('Queueable Job Id: ' + context.getJobId());
+
+       Account acc = [SELECT Id, Name, Description 
+                      FROM Account 
+                      WHERE Id = :accId LIMIT 1];
+
+       acc.Description = 'Sent via Queueable';
+       update acc;
+
+       Http http = new Http();
+       HttpRequest req = new HttpRequest();
+       req.setEndpoint('callout:My_Named_Credential/account');
+       req.setMethod('POST');
+       req.setHeader('Content-Type', 'application/json');
+       req.setBody(JSON.serialize(acc));
+
+       http.send(req);
+   }
+}
+
+▶️ Call:
+
+System.enqueueJob(new AccountQueueableCallout(acc.Id));
+
+✅ Supports chaining
+✅ Better error handling
+✅ Recommended in real projects
+
+⸻
+
+🔹 3️⃣ Batch Apex (Large Data)
+Database.QueryLocator
+👉 Used when records > 50,000
+
+```apex
+global class AccountCalloutBatch implements Database.Batchable<SObject>, Database.AllowsCallouts {
+
+    // START METHOD
+    global Database.QueryLocator start(Database.BatchableContext bc) {
+
+        System.debug('Batch Job Id: ' + bc.getJobId());
+
+        return Database.getQueryLocator(
+            [SELECT Id, Name FROM Account LIMIT 50]
+        );
+    }
+
+    // EXECUTE METHOD
+    global void execute(Database.BatchableContext bc, List<Account> scope) {
+
+        Http http = new Http();
+        List<Account> updateAccounts = new List<Account>();
+
+        for(Account acc : scope){
+
+            HttpRequest req = new HttpRequest();
+            req.setEndpoint('https://jsonplaceholder.typicode.com/users/1');
+            req.setMethod('GET');
+            req.setHeader('Content-Type','application/json');
+
+            HttpResponse res = http.send(req);
+
+            if(res.getStatusCode() == 200){
+
+                System.debug('API Response: ' + res.getBody());
+
+                // Example update
+                acc.Description = 'API Sync Completed';
+
+                updateAccounts.add(acc);
+            }
+        }
+
+        if(!updateAccounts.isEmpty()){
+            update updateAccounts;
+        }
+    }
+
+    // FINISH METHOD
+    global void finish(Database.BatchableContext bc){
+
+        System.debug('Batch Completed Job Id: ' + bc.getJobId());
+
+        // Example: Send email or log
+    }
+}
+```
+------------------------------------------------------------------
+# 2️⃣ Running the Batch
+Execute the batch from **Anonymous Apex**
+```apex
+Database.executeBatch(new AccountCalloutBatch(), 10); // 10 records per batch/transaction
+//200 records can be processed per transaction, so you can adjust batch size based on callout limits and processing needs.
+//Database.executeBatch(new AccountCalloutBatch(), 200); // 200 records per batch/transaction
+
+### Batch Callout Limits
+    Per **execute transaction**:
+    | Limit        | Value        |
+    | ------------ | ------------ |
+    | Max Callouts | 100          |
+    | Batch Size   | configurable |
+
+Example:
+```text
+Batch Size = 10
+Callouts per record = 1
+Total callouts = 10
+------------------------------------------------------------------
+
+🔹 4️⃣ Scheduled Apex (Time-Based)
+
+👉 Run automatically at specific time.
+
+global class AccountScheduler implements Schedulable {
+
+   global void execute(SchedulableContext sc) {
+       Database.executeBatch(new AccountBatchExample(), 200);
+   }
+}
+
+▶️ Schedule:
+
+String cronExp = '0 0 2 * * ?'; // Daily at 2 AM
+System.schedule('Daily Batch Job', cronExp, new AccountScheduler());
+
+⸻
+
+🔥
+
+⸻
+
+🔥 Final Interview Summary Table
+
+Type Used For Best For
+@future Small async Simple callouts
+Queueable Medium jobs Recommended for API
+Batch Large data 50k+ records
+Scheduled Time-based Night jobs
+
+
+⸻
+
+🎯 Powerful Interview Answer (30 Seconds)
+
+“In Salesforce, we use Future or Queueable for asynchronous callouts. Queueable is preferred because it supports chaining and complex types.
+For large data, we use Batch Apex, and for time-based automation, we use Scheduled Apex. To avoid Mixed DML and uncommitted work errors, we move callouts to 
+async classes and use Named Credentials for secure API integration.”

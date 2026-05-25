@@ -1,0 +1,76 @@
+In **Salesforce Apex**, **Queueable Apex** and **Batch Apex** are both used for **asynchronous processing**, but **Queueable Apex has several advantages when the
+job is not dealing with huge datasets**. Below are the main advantages.
+
+
+# ⭐ Advantages of Queueable Apex over Batch Apex
+
+## 1️⃣ Simpler Implementation
+**Queueable Apex** requires only **one method**.
+Queueable structure:
+```apex
+public class MyQueueable implements Queueable {
+    public void execute(QueueableContext context) {
+        // logic
+    }
+}
+```
+But **Batch Apex requires three methods**:
+    ```apex
+    start()
+    execute()
+    finish()
+```
+So Queueable is **simpler and faster to implement**. ⚡
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# 2️⃣ Supports Complex Data Types
+Queueable can pass **complex objects** such as:
+* sObjects
+* Lists
+* Map
+* Custom objects
+* Wrapper classes
+Example:
+```apex
+System.enqueueJob(new MyQueueable(accountList));
+```
+Batch Apex **cannot directly pass complex objects** like this because it mainly works with:
+* `QueryLocator`
+* `Iterable`
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# 3️⃣ Job Chaining during execution (Sequential Processing)
+    Queueable allows **chaining another Queueable job** directly.
+    Example:
+
+    ```apex
+    public void execute(QueueableContext context) {
+        System.enqueueJob(new SecondQueueable());
+    }
+    ```
+This allows creating **step-by-step asynchronous workflows**.
+Batch Apex can chain jobs only in the **finish() method**, which is more restrictive.
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# 4️⃣ Faster Job executes
+Queueable jobs usually **start faster** because:
+* They run as **single asynchronous jobs**
+* They don’t need batch chunk creation
+    Batch Apex must:
+    1. Create batch chunks
+    2. Schedule executions
+    3. Process multiple transactions
+    So it has **more overhead**.
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# 5️⃣ Better for Small–Medium Data Processing
+    Queueable is ideal when:
+    * Processing **< 50k records**
+    * Running **post-trigger logic**
+    * Doing **API integrations**
+    * Sending **notifications**
+    * Performing **data transformations**
+
+    Batch Apex is designed for **very large datasets (millions of records)**.
+------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# 6 Better for Small–Medium Data Processing
+      Performance overhead ==> Low               ===> Higher       
+✅ **Interview tip:**
+Most **Salesforce developers use Queueable Apex instead of Batch Apex when the data volume is small and they need chaining or complex object handling.**
+

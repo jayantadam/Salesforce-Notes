@@ -1,0 +1,53 @@
+               
+1.  Record trogger flow - Account object number of contact update
+
+    Layout - Auto Layout
+            Free-Form
+
+    Flow BEFORE SAVE : Fast Field Updates
+    Flow After SAVE : Action and Related Records
+
+    If you are saving anything with assignement use BEFORE SAVE flow
+
+     | Flow                | Trigger        |
+     | Coding              | No code        |
+     | Deployment required | Just Active    |
+     | need test class     | No test class  |
+     | hard for admin      | Admin Friendly |
+     | Debugging complex   | Visual debug   |
+
+
+2. screen flow 
+    flow name - Opportunity Flow version 2
+    https://www.youtube.com/watch?v=CyxvmhNLCa8
+
+
+3️⃣ Scheduled-Triggered Flow
+What it does:
+    Runs at a specific time/date
+    Can run daily, weekly, or once
+Used for:
+    Reminder emails
+    Data cleanup
+    Mass updates
+
+5️⃣ Platform Event-Triggered Flow
+
+What it does:
+  Runs when a Platform Event is received
+Used for:
+    Integrations
+    Real-time system updates     
+
+4️⃣ Autolaunched Flow (No Trigger)
+What it does:
+    Runs automatically
+    No screens
+    No trigger by itself
+Triggered by:
+        Apex
+        Another Flow (Subflow)
+        Process Builder (legacy)
+        API    
+
+   

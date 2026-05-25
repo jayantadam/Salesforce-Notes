@@ -1,0 +1,167 @@
+
+// File: OpportunityLineItemTrigger.trigger
+trigger OpportunityLineItemTrigger on OpportunityLineItem (
+    after insert,
+    after undelete,
+    after delete
+) {
+    Set<Id> oppIds = new Set<Id>();
+
+    if (Trigger.isInsert || Trigger.isUndelete) {
+        for (OpportunityLineItem oli : Trigger.new) {
+            if (oli.OpportunityId != null) oppIds.add(oli.OpportunityId);
+        }
+    }
+    if (Trigger.isDelete) {
+        for (OpportunityLineItem oli : Trigger.old) {
+            if (oli.OpportunityId != null) oppIds.add(oli.OpportunityId);
+        }
+    }
+
+    if (!oppIds.isEmpty()) {
+        OpportunityLineItemTriggerHandler.updateOppCountsAndLastCreated(oppIds);
+    }
+}
+
+
+// File: OpportunityLineItemTriggerHandler.cls
+public class OpportunityLineItemTriggerHandler {
+    private static Boolean isRunning = false;
+
+    public static void updateOppCountsAndLastCreated(Set<Id> oppIds) {
+        if (isRunning) return; // recursion guard
+        isRunning = true;
+
+        Savepoint sp = Database.setSavepoint();
+        try {
+            if (oppIds == null || oppIds.isEmpty()) return;
+
+            // Aggregate per Opportunity
+            List<AggregateResult> rollups = [
+                SELECT
+                    OpportunityId oppId,
+                    COUNT(Id) cnt,
+                    MAX(CreatedDate) lastCreated
+                FROM OpportunityLineItem
+                WHERE OpportunityId IN :oppIds
+                GROUP BY OpportunityId
+            ];
+
+            Map<Id, Integer> countsByOpp = new Map<Id, Integer>();
+            Map<Id, Datetime> lastCreatedByOpp = new Map<Id, Datetime>();
+
+            for (AggregateResult ar : rollups) {
+                Id oppId = (Id) ar.get('oppId');
+                countsByOpp.put(oppId, (Integer) ar.get('cnt'));
+                lastCreatedByOpp.put(oppId, (Datetime) ar.get('lastCreated'));
+            }
+
+            List<Opportunity> updates = new List<Opportunity>();
+            for (Id oppId : oppIds) {
+                Opportunity o = new Opportunity(Id = oppId);
+                o.Total_Line_Items__c = countsByOpp.containsKey(oppId) ? countsByOpp.get(oppId) : 0;
+                o.Last_LineItem_Created_Date__c = lastCreatedByOpp.get(oppId);
+                updates.add(o);
+            }
+
+            if (!updates.isEmpty()) {
+                update updates; // <-- any failure here will be caught below
+            }
+        } catch (Exception e) {
+            // Rollback any partial changes made by this handler
+            Database.rollback(sp);
+
+            // Log the error (safe insert)
+            ErrorLogger.log(
+                'OpportunityLineItemTriggerHandler.updateOppCountsAndLastCreated',
+                e
+            );
+
+            // Rethrow to fail the transaction (data integrity first)
+            throw e;
+        } finally {
+            isRunning = false;
+        }
+    }
+}
+
+============================================================================================================================================================================================================
+2nd Example - When an Opportunity’s `StageName` changes to “Closed Won”, create a `Project__c` (lookup to Opportunity)
+and set `Project_Manager__c = Opportunity.OwnerId`. Prevent duplicates if the record is edited multiple times.
+
+trigger OpportunityTrigger on Opportunity (after insert, after update) {
+    if (Trigger.isAfter) {
+        if (Trigger.isInsert || Trigger.isUpdate) {
+            OpportunityTriggerHandler.createProjectOnClosedWon(Trigger.new, Trigger.oldMap);
+        }
+    }
+}
+
+
+public class OpportunityTriggerHandler {
+   private static Boolean isRunning = false;
+    public static void createProjectOnClosedWon(List<Opportunity> newList, Map<Id, Opportunity> oldMap) {
+        if (isRunning) return; // recursion guard
+        isRunning = true;
+        Savepoint sp = Database.setSavepoint();
+    try {
+        // 1) Collect Opportunity Ids that need a Project__c
+        Set<Id> oppIdsNeedingProject = new Set<Id>();
+
+        for (Opportunity opp : newList) {
+            if (opp == null || opp.Id == null) continue;
+
+            // Case A: after insert — Opp is already Closed Won
+            if (oldMap == null) {
+                if (opp.StageName == 'Closed Won') {
+                    oppIdsNeedingProject.add(opp.Id);
+                }
+                continue;
+            }
+
+            // Case B: after update — StageName transitioned to Closed Won
+            Opportunity oldOpp = oldMap.get(opp.Id);
+            if (oldOpp == null) continue;
+
+            Boolean movedToClosedWon = (opp.StageName == 'Closed Won' && oldOpp.StageName != 'Closed Won');
+            if (movedToClosedWon) {
+                oppIdsNeedingProject.add(opp.Id);
+            }
+        }
+
+        if (oppIdsNeedingProject.isEmpty()) return;
+
+        // 2) Query existing Project__c to avoid duplicates (one Project per Opp)
+        //    Assumes Project__c has a lookup: Opportunity__c
+        
+        Map<Id, Project__c> existingByOppId = new Map<Id, Project__c>();
+        for (Project__c p : [
+            SELECT Id, Opportunity__c
+            FROM Project__c
+            WHERE Opportunity__c IN :oppIdsNeedingProject
+        ]) {
+            if (p.Opportunity__c != null) {
+                existingByOppId.put(p.Opportunity__c, p);
+            }
+        }
+
+        // 3) Build inserts only for Opps that do NOT already have a Project__c
+        
+        List<Project__c> toInsert = new List<Project__c>();
+        for (Opportunity opp : newList) {
+            if (!oppIdsNeedingProject.contains(opp.Id)) continue;
+            if (existingByOppId.containsKey(opp.Id)) continue;
+
+            Project__c proj = new Project__c();
+            proj.Opportunity__c = opp.Id;
+            proj.Project_Manager__c = opp.OwnerId; // requirement: set PM to Opp Owner
+            // Add any other defaulting as needed, e.g. Name, Status__c, Start_Date__c, etc.
+
+            toInsert.add(proj);
+        }
+
+        if (!toInsert.isEmpty()) {
+            insert toInsert;
+        }
+    }
+}

@@ -1,0 +1,289 @@
+Sure! Here’s a clear + interview-friendly explanation of Apex Asynchronous processing 👇
+
+What is Asynchronous Apex?
+**Asynchronous Apex** lets you run long-running operations in the background, outside the standard synchronous request–response cycle.
+ This helps avoid governor limits and keeps your UI/API calls fast.
+
+It’s used when you want to:
+• Handle large data volumes
+• Perform callouts
+• Avoid governor limits
+• Improve performance & user experience
+
+🔥 One-Line Interview Scenarios
+
+	•	Trigger + Callout? → Queueable
+
+	•	Millions of records? → Batch
+
+	•	Run every night? → Scheduled + Batch
+
+	•	Simple async task? → Future
+
+Types of Asynchronous Apex 🚀
+
+1️⃣ Future Method
+
+Best for: Simple background tasks, callouts
+
+Key points
+*   Callouts after DML
+*   Offload simple non-UI tasks
+• Must be static
+• Returns void
+• Parameters must be primitive types
+• Cannot chain future methods
+
+            Use case: Send data to an external system after record insert.
+    1️⃣ Future Method – Example (with Callout)
+
+    public class FutureExample {
+
+                @future(callout=true)
+
+                public static void sendAccountToAPI(Id accId) {
+
+                    Account acc = [
+
+                        SELECT Id, Name 
+
+                        FROM Account 
+
+                        WHERE Id = :accId
+
+                    ];
+
+                    HttpRequest req = new HttpRequest();
+
+                    req.setEndpoint('https://example.com/api/account');
+
+                    req.setMethod('POST');
+
+                    req.setHeader('Content-Type', 'application/json');
+
+                    req.setBody(JSON.serialize(acc));
+
+                    Http http = new Http();
+
+                    HttpResponse res = http.send(req);
+
+                }
+
+            }
+
+    Call it from trigger / class
+            FutureExample.sendAccountToAPI(acc.Id);
+
+            📌 Interview note:
+            Future methods are fire-and-forget and cannot return values.
+
+            ✅ Simple
+            ❌ Limited control & no chaining
+
+  ==========================================================================================================================================================================================================================================================================================          ⸻
+
+ 2️⃣ Queueable Apex ⭐ (Most Used) - System.enqueueJob(new MyQueueableClass());
+        Best for: Complex logic, chaining jobs
+        Key points
+            • Implements Queueable
+            • Supports non-primitive types
+            • Can chain another queueable job
+
+
+2️⃣ Queueable Apex – Example (with Chaining)
+
+       Use case: Process records and then run another async job.
+
+        public class FirstQueueable implements Queueable {
+
+            public void execute(QueueableContext context) {
+
+                List<Account> accList =
+
+                    [SELECT Id, Name FROM Account LIMIT 5];
+
+                // processing logic
+
+                System.debug('First Queueable executed');
+
+                // Chaining another queueable
+
+                System.enqueueJob(new SecondQueueable());
+
+            }
+
+        }
+
+        public class SecondQueueable implements Queueable {
+
+            public void execute(QueueableContext context) {
+
+                System.debug('Second Queueable executed');
+
+            }
+
+        }
+        Enqueue
+        System.enqueueJob(new FirstQueueable());
+
+        3️⃣ Queueable + Callout – Real-World Example ⭐
+
+      public class SendOppToERPQueueable implements Queueable, Database.AllowsCallouts {
+
+            private Id oppId;
+
+            public SendOppToERPQueueable(Id oppId) {
+                this.oppId = oppId;
+            }
+
+    public void execute(QueueableContext context) {
+
+        Opportunity opp = [
+            SELECT Id, Name, Amount, StageName,ERP_Status__c
+            FROM Opportunity
+            WHERE Id = :oppId
+        ];
+
+          // Update status after successful callout
+        if (res.getStatusCode() == 200) {
+            opp.ERP_Status__c = 'Sent';
+        } else {
+            opp.ERP_Status__c = 'Failed - ' + res.getStatusCode();
+        }
+
+        update opp;
+
+        // --- Example Callout ---
+        HttpRequest req = new HttpRequest();
+        req.setEndpoint('callout:ERP_Service/opportunity');
+        req.setMethod('POST');
+        req.setHeader('Content-Type', 'application/json');
+        req.setBody(JSON.serialize(opp));
+
+        Http http = new Http();
+        HttpResponse res = http.send(req);
+
+    }
+}
+
+    System.enqueueJob(new SendOppToERPQueueable(opp.Id));
+
+📌 Interview note:
+Queueable supports complex types and job chaining (not possible in future).
+
+✅ Flexible
+✅ Chaining supported
+❌ Slightly more complex than future
+
+==========================================================================================================================================================================================================================================================================================
+
+3️⃣ Batch Apex
+
+Best for: Large data processing (millions of records) - Database.executeBatch(new MyBatch(), 200);
+
+Key points
+• Implements Database.Batchable
+• Runs in chunks (default 200 records)
+• Has start, execute, finish
+
+Use case: Update thousands/millions of records.
+
+5️⃣ Batch Apex + Callout Example
+public class AccountBatchExample implements Database.Batchable<SObject> {
+
+    public Database.QueryLocator start(Database.BatchableContext bc) {
+        return Database.getQueryLocator('SELECT Id, Industry FROM Account');
+    }
+
+  public void execute(Database.BatchableContext bc,List<Account> scope) {
+        for (Account acc : scope) {
+            acc.Industry = 'IT';
+        }
+        update scope;
+
+        HttpRequest req = new HttpRequest();
+
+        req.setEndpoint('https://example.com/api/sync');
+
+        req.setMethod('POST');
+
+        req.setBody(JSON.serialize(scope));
+
+        Http http = new Http();
+
+        http.send(req);
+}
+
+    public void finish(Database.BatchableContext bc) {
+        System.debug('Batch Completed');
+    }
+
+}
+
+Execute
+Database.executeBatch(new AccountBatchExample(), 200);
+📌 Interview note:
+Batch runs in chunks and resets governor limits per chunk.
+✅ Handles huge data
+❌ Slower execution
+==========================================================================================================================================================================================================================================================================================
+
+4️⃣ Scheduled Apex - System.schedule('Daily Job', '0 0 2 * * ?', new PendingApprovalScanScheduler());
+
+Scheduled Apex is not truly real-time, but it can run on a near real-time frequency (e.g., every 15 minutes) and handle automation
+like nightly syncs, status updates, cleanup jobs, etc.
+
+Best for: Running jobs at a specific time
+
+Use case: Run batch job daily at night.
+
+A scheduled job checks for Opportunities stuck in “Pending Approval” for more than 2 hours, sends a reminder, and updates a field.
+
+global class PendingApprovalScanScheduler implements Schedulable {
+
+    global void execute(SchedulableContext ctx) {
+
+        List<Opportunity> oppList = [
+            SELECT Id, Name, StageName, LastModifiedDate
+            FROM Opportunity
+            WHERE StageName = 'Pending Approval'
+                  AND LastModifiedDate < :System.now().addHours(-2)
+        ];
+
+        for (Opportunity opp : oppList) {
+            // Example: Flag as "Reminder Sent"
+            opp.Reminder_Status__c = 'Reminder Sent';
+        }
+
+        if (!oppList.isEmpty()) {
+            update oppList;
+
+            // Optionally send a Notification or Email Alert
+            System.debug(oppList.size() + ' reminders sent.');
+        }
+    }
+}
+
+Schedule
+String cron = '0 0,15,30,45 * * * ?';  // every 15 min
+System.schedule('Opportunity Approval Scanner', cron, new PendingApprovalScanScheduler());
+
+⸻
+🔥 Real-Time Interview Comparison
+Type Callout Chaining Large Data
+Future ✅ ❌ ❌
+Queueable ✅ ✅ ❌
+Batch ❌* ❌ ✅
+Scheduled ❌ ❌ ❌
+
+* Batch supports callout only with Database.AllowsCallouts
+
+⸻
+
+When to use what? 🤔
+• Small async task → Future
+• Complex async logic → Queueable
+• Huge data processing → Batch
+• Time-based execution → Scheduled
+
+⸻

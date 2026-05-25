@@ -1,0 +1,1217 @@
+FIND - Acryonym
+
+LWC was introduced in 2018 as a developer preview and became generally available in 2019 with the Spring ’19 release.”
+what is visual force
+Visualforce is a component-based user interface framework from [Salesforce] used to build custom pages and applications on the Salesforce platform.
+It allows developers to create:
+
+* Custom forms
+* Dashboards
+* PDF reports
+* Mobile interfaces
+* Complex business workflows
+
+Visualforce pages are written using:
+* An XML-like markup language
+* Apex (Salesforce’s server-side programming language)
+* Standard web technologies like HTML, CSS, and JavaScript
+
+### Key Features
+* Runs natively on the Salesforce platform
+* Integrates directly with Salesforce data and security
+* Supports reusable components
+* Can render as HTML, PDF, email templates, and more
+
+### Simple Example
+```html
+<apex:page>
+    <h1>Hello Salesforce!</h1>
+</apex:page>
+
+Here:
+* `<apex:page>` is the root Visualforce tag
+* The page renders inside Salesforce
+### Where Visualforce Is Used
+
+Salesforce now promotes Lightning Web Components (LWC) and Aura Components for modern UI development.
+| Visualforce          | Lightning Web Components        |
+| -------------------- | ------------------------------- |
+| Older technology     | Modern framework                |
+| Server-rendered      | Client-side rendering           |
+| XML-based pages      | JavaScript-based components     |
+| Good for legacy apps | Recommended for new development |
+You can use a Visualforce page inside a Lightning Web Components component mainly through an **iframe**.
+This is commonly done when:
+* You already have existing Visualforce pages
+* You want to reuse legacy functionality
+* You need PDF rendering or older integrations
+
+how to use visualforce inside lwc
+# Architecture
+            LWC Component
+                ↓
+            iframe
+                ↓
+            Visualforce Page
+---
+# Step-by-Step Example
+
+We will:
+1. Create Visualforce page
+2. Create LWC component
+3. Load VF page inside LWC
+---
+# Step 1: Create Visualforce Page
+Go to:
+* Setup
+* Developer Console
+* New → Visualforce Page
+        Page name: MyVFPage
+        Code:
+           <apex:page>
+            <h1 style="color:blue;">
+                Hello from Visualforce
+            </h1>
+        <h2>
+                Hello {!$CurrentPage.parameters.name}
+            </h2>
+            <p>
+                This Visualforce page is loaded inside LWC.
+            </p>
+        </apex:page>
+# Step 2: Create LWC Component
+        vfContainer.html
+        vfContainer.js
+        vfContainer.js-meta.xml
+# Step 3: Add iframe in HTML
+        ## vfContainer.html
+        <template>
+            <lightning-card title="Visualforce Inside LWC">
+                <iframe
+                    src={vfPageUrl}
+                    width="100%"
+                    height="400px"
+                    style="border:none;">
+                </iframe>
+
+            </lightning-card>
+        </template>
+# Step 4: Add JS Logic
+        ## vfContainer.js
+        import { LightningElement } from 'lwc';
+        export default class VfContainer extends LightningElement {
+            You can send values through URL.
+            vfPageUrl = '/apex/MyVFPage?name=Rahul';
+        }
+# Step 5: Configure Metadata
+            ## vfContainer.js-meta.xml
+            <?xml version="1.0" encoding="UTF-8"?>
+            <LightningComponentBundle
+                xmlns="http://soap.sforce.com/2006/04/metadata">
+                <apiVersion>62.0</apiVersion>
+                <isExposed>true</isExposed>
+                <targets>
+                    <target>lightning__AppPage</target>
+                    <target>lightning__HomePage</target>
+                    <target>lightning__RecordPage</target>
+                </targets>
+            </LightningComponentBundle>
+        --------------------------------
+        | Visualforce Inside LWC       |
+        |                              |
+        | Hello from Visualforce       |
+        | This page is loaded in LWC   |
+        --------------------------------
+        # Important Salesforce Security Notes
+        Because VF and LWC may run on different domains:
+        * Salesforce uses iframe isolation
+        * CSP (Content Security Policy) applies
+        * Use trusted URLs if required
+        # Alternative Approaches
+        Instead of iframe:
+        | Method              | Use Case              |
+        | ------------------- | --------------------- |
+        | iframe              | Most common           |
+        | Lightning Container | Legacy integrations   |
+        | Rewrite VF into LWC | Recommended long-term |
+
+Communication between Lightning Web Components and Visualforce
+1. LWC → VF
+LWC HTML
+    <template>
+        <lightning-button
+            label="Send To VF"
+            onclick={sendMessage}>
+        </lightning-button>
+        <iframe
+            src="/apex/TestVF"
+            width="100%"
+            height="300">
+        </iframe>
+    </template>
+LWC JS
+        import { LightningElement } from 'lwc';
+        export default class TestLwc extends LightningElement {
+            sendMessage() {
+                const vfWindow = this.template
+                    .querySelector('iframe')
+                    .contentWindow;
+                    
+                vfWindow.postMessage(
+                    {
+                        message: 'Hello VF'
+                    },
+                    '*'
+                );
+            }
+        }
+---------------------------------------------------------------------------------------------------------------------------------------------        
+2. Visualforce Receive
+VF Page
+<apex:page>
+ <script>
+    window.addEventListener('message', function(event) {
+        alert(event.data.message);
+    });
+
+    function sendToLwc() {
+        window.parent.postMessage(
+            {
+                message: 'Hello LWC'
+            },
+            '*'
+        );
+    }
+</script>
+<h1>Visualforce Page</h1>
+<button onclick="sendToLwc()">
+    Send To LWC
+</button>
+</apex:page>
+
+LWC Receive
+connectedCallback() {
+    window.addEventListener('message', (event) => {
+        alert(event.data.message);
+    });
+}
+
+Simple Memory Trick
+lwc → visualforce = contentWindow.postMessage()
+visualforce → lwc = window.parent.postMessage()
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Here’s a **clean table format** comparison of **Aura Components vs Salesforce Lightning Web Components (LWC)** 👇
+ Acryonym: TPDSSR
+ ac
+    # ⚡ Aura vs LWC (Table Format) 
+    | Feature                     | Aura Components                  | LWC                                               |
+    | --------------------------- | -------------------------------- | ------------------------------------------------- |
+    | **Technology**              | Proprietary Salesforce framework | Based on modern JavaScript (ES6+) & Web Standards |
+    | **Performance**             | Slower (heavy framework)         | Faster (lightweight, native browser APIs)         |
+    | **Data Binding**            | Two-way binding                  | One-way binding                                   |
+    | **Shadow DOM**              | Not supported                    | Supported (encapsulation)                         |
+    | **Security**                | Locker Service                   | Lightning Web Security (modern)                   |
+    | **Reusability**             | Moderate                         | High (modular)                                    |
+    | **Testing**                 | Jasmine framework                | Jest (modern testing)                             |
+    | **Component Communication** | Component & Application Events   | `@api` + Custom DOM Events                        |
+    | **Debugging**               | Difficult                        | Easier (browser tools)                            |
+    | **Learning Curve**          | Steeper                          | Easier (web standards)                            |
+    | **Future Scope**            | Legacy (supported)               | Future of Salesforce                              |
+    | **Use Case**                | Existing/legacy apps             | New development                                   |
+    | **Development Model**       | Complex                          | Simple & developer-friendly                       | 
+    | **Syntax**                  | Custom (`aura:component`)        | Standard HTML, JS, CSS                            |
+------------------------------------------------------------------------------------------------------------------------------------------------
+parent.component.js
+    handleChildMessage(event) {
+        console.log('Received from child:', event.detail);
+        }
+        @track customersData = [
+            { id: 1, name: 'John Doe', email: 'john.doe@example.com' },
+            { id: 2, name: 'Jane Smith', email: 'jane.smith@example.com' }
+        ];
+
+    // onchildmessages ==> correct
+    // onChildMessages ==> incorrect
+parent.component.html
+        <c-child-component message="Hello from parent!" customers-all-data={customersData} onchildmessages={handleChildMessage} ></c-child-component>
+child.component.js
+        @api message;
+        @api customersAllData;
+            handleClick() {
+                    this.dispatchEvent(new CustomEvent('childmessage', { detail: 'Hello from child!' }));
+                }
+                
+# 🧠 One-Line Interview Answer
+
+👉 *“Aura is an older, proprietary framework, while LWC is modern, faster, and based on standard web technologies, making it the preferred choice for
+ new development.”*
+------------------------------------------------------------------------------------------------------------------------------------------------
+
+how to debug LWC not rendering issues in Salesforce Lightning Web Components (LWC)
+remember the Acryonym DIMCAPS for a systematic debugging approach.
+--
+# ⚡ LWC Not Rendering – Priority Order (Top → Bottom)
+| Letter | Meaning     | What to Check                      |
+| ------ | ----------- | ---------------------------------- |
+| **D**  | Deployment  | Component deployed successfully?   |
+| **I**  | Imports     | Wrong Apex/module import?          |
+| **M**  | Metadata    | `.js-meta.xml` targets/exposed?    |
+| **C**  | Console     | Browser console errors?            |
+| **A**  | Apex        | `@AuraEnabled`, static, exceptions |
+| **P**  | Permissions | FLS, object access, Apex access    |
+| **S**  | Syntax      | HTML/JS syntax issues              |
+---------------------------------------------------------------------------------------------------------------------------------------------
+Acryonym for LWC properties - PPRTGW
+
+In **Salesforce Lightning Web Components (LWC)**, *properties* are variables used to store data and control how components behave and communicate.
+They are a core part of building dynamic UI in Salesforce.
+
+# 🔹 Types of Properties in LWC
+1. Public Properties (`@api`)
+* Declared using the `@api` decorator
+* Accessible from **parent components**
+* Used for **component communication (parent → child)**
+
+    ```js
+    import { LightningElement, api } from 'lwc';
+
+    export default class ChildComponent extends LightningElement {
+        @api message;
+    }
+    ```
+    👉 Parent can pass value:
+    ```html
+    <c-child-component message="Hello"></c-child-component>
+    ```
+---------------------------------------------------------------------------------------------------------------------------------------------
+## 2. Private Properties
+    * Default properties (no decorator)
+    * Used **within the component only**
+    * Not accessible outside
+
+```js
+name = "Salesforce";
+```
+---------------------------------------------------------------------------------------------------------------------------------------------
+## 3. Reactive Properties
+    * Properties that update the UI automatically when their value changes
+    * In modern LWC, **all fields are reactive by default**
+    * Earlier, `@track` was used
+    1. Primitive types(string, number, boolean) are reactive by default.
+    2. Objects and arrays are reactive when:
+    - You reassign the entire object/array reference. example - ```js this.obj = { ...this.obj, name: 'alex' }```
+    - Or use `@track` for deep reactivity (less common now).
+    3. Getters are reactive when they depend on reactive properties.
+    4. Wire properties are reactive when their parameters change.
+    5. Template expressions are reactive when they reference reactive properties.
+    6. Event handlers can trigger reactivity when they update reactive properties.  
+```js
+ count = 0;
+
+handleClick() {
+    this.count++; // UI updates automatically
+}
+```
+------------------------------------------------------------------------------------------------------------------------------------------------
+## 4. Tracked Properties (`@track`) *(less commonly needed now)*
+* Used for **deep reactivity in objects/arrays**
+```js
+import { track } from 'lwc';
+@track user = {
+    name: 'John',
+    age: 25
+};
+```
+👉 Needed when modifying nested values:
+``js
+this.user.age = 26;
+```
+---------------------------------------------------------------------------------------------------------------------------------------------
+## 5. Getter & Setter Properties
+
+* Used to compute values dynamically
+* Called automatically when referenced in template
+
+```js
+name = 'World';
+get greeting() {
+    return 'Hello ' + this.name;
+}
+set name(value) {
+    this.name = value.toUpperCase();
+}
+```
+```html
+<p>{greeting}</p>
+```
+---------------------------------------------------------------------------------------------------------------------------------------------
+6. Wire Properties (`@wire`)
+* Used to connect to Salesforce data (Apex or LDS)
+```js
+import { LightningElement, wire } from 'lwc';
+import getContacts from '@salesforce/apex/ContactController.getContacts';
+export default class ContactList extends LightningElement {
+    @wire(getContacts) contacts;
+}
+```
+---------------------------------------------------------------------------------------------------------------------------------------------
+## 🔹 Key Characteristics of LWC Properties
+### ✅ Reactive
+  * Changes automatically reflect in UI
+### 🔄 One-way Data Binding
+  * Data flows **JavaScript → HTML template**
+### 🔗 Component Communication
+  * `@api` enables **parent → child communication**
+### ⚡ Efficient Rendering
+  * Only updates parts of DOM that changed
+### 🔒 Encapsulation
+  * Private properties are hidden from other components
+---
+
+## 🔹 Example (Simple LWC)
+```js
+import { LightningElement, api } from 'lwc';
+export default class HelloWorld extends LightningElement {
+    @api name = 'World';
+    get greeting() {
+        return `Hello, ${this.name}!`;
+    }
+}
+```
+
+```html
+<template>
+    <p>{greeting}</p>
+</template>
+```
+
+---------------------------------------------------------------------------------------------------------------------------------------------
+## 📌 Summary
+Properties in Salesforce LWC:
+* Store and manage data
+* Control UI updates
+* Enable communication between components
+* Support reactive and efficient rendering
+Platform reference: Salesforce
+---  @AuraEnabled(cacheable=true)
+    public static List<Contact> byAccount(Id accountId) {
+        return [SELECT Id, Name, Email FROM Contact WHERE AccountId = :accountId];
+    }
+
+## 1. What is LWC and how is it different from Aura?
+**Answer:**
+Lightning Web Components (LWC) is a modern UI framework in Salesforce built using standard web technologies like HTML, JavaScript, and CSS.
+It follows Web Component standards and runs on a lightweight engine.
+
+**Key differences from Aura:**
+
+* LWC uses native Web Standards; Aura is framework-based.
+* LWC has better performance due to lightweight architecture.
+* LWC uses one-way data binding; Aura supports two-way binding.
+* LWC has simpler lifecycle hooks.
+* LWC is more aligned with modern JavaScript (ES6+).
+
+------------------------------------------------------------------------------------------------------------------------------------------------
+## 2. Explain the LWC component lifecycle hooks.
+**Answer:**
+Important lifecycle hooks:
+* constructor() – Component initialization.
+* connectedCallback() – Runs when component is inserted into DOM.
+* renderedCallback() – Runs after every render.
+* disconnectedCallback() – Runs when removed from DOM.
+* errorCallback(error, stack) – Handles child component errors.
+
+In real projects, I mostly use connectedCallback for initial data load and renderedCallback carefully to avoid infinite loops.
+
+------------------------------------------------------------------------------------------------------------------------------------------------
+## 3. How does communication happen between components in LWC?
+    **Answer:**
+    There are three main ways:
+    1. Parent to Child – Using @api decorator.
+    2. Child to Parent – Using Custom Events. this.dispatchEvent(new CustomEvent('customEventNName', { detail: data }));
+    3. Unrelated Components – Using Lightning Message Service (LMS) or Pub-Sub (older approach).
+
+In enterprise apps, I prefer Lightning Message Service for cross-DOM communication because it's officially supported and scalable.
+
+---------------------------------------------------------------------------------------------------------------------------------------------
+## 4. What are @api, @track, and @wire?
+**Answer:**
+@api
+Makes a property or method public so it can be accessed by parent components.
+
+@track
+Earlier used to make properties reactive. Now, only required for nested objects/arrays (though reactivity has improved).
+
+@wire
+Used to connect LWC to Salesforce data (Apex methods or LDS). It provisions reactive data.
+
+Example:
+
+* @wire(getRecord, { recordId: '$recordId', fields: FIELDS })
+------------------------------------------------------------------------------------------------------------------------------------------------
+In Salesforce LWC, an **Apex wired call** means using the `@wire` decorator to automatically call an Apex method 
+and bind the returned data reactively to the component.
+## 1. Apex Class
+Your Apex method must be:
+    * `public` or `global`
+    * `static`
+    * annotated with `@AuraEnabled(cacheable=true)` for wired calls
+
+In Lightning Web Components, a wire method runs automatically when:
+        Component is initialized (loaded in DOM)
+        Reactive parameters change (values prefixed with $)
+        Cache is refreshed (e.g., using refreshApex)
+```apex
+public with sharing class AccountController {
+@AuraEnabled(cacheable=true)
+public static List<Contact> getContacts(Id accountId) {
+        return [
+            SELECT Id, Name
+            FROM Contact
+            WHERE AccountId = :accountId
+        ];
+    }
+}
+----------------------------------------------------------------------------------------------------------------------------------
+## 2. LWC JavaScript (`accountList.js`)
+### Wire Property
+```javascript
+import { LightningElement, wire } from 'lwc';
+import getAccounts from '@salesforce/apex/AccountController.getAccounts';
+export default class AccountList extends LightningElement {
+ @api accountId;
+ wiredResult; // stores full wire response
+ @wire(getAccounts, { accountId: '$accountId' })
+    wiredAccounts({ data, error }) {
+   this.wiredResult = { data, error }; // Store full response for refreshApex
+        if (data) {
+            this.accounts = data;
+        } else if (error) {
+            this.error = error;
+        }
+    }
+}
+
+handleAddAccount() {
+        createAccount({ name: 'New Account ' + Math.random() })
+            .then(() => {
+                // Refresh data after insert
+                return refreshApex(this.wiredAccounts);
+            })
+            .catch(error => {
+                console.error(error);
+            });
+    }
+----------------------------------------------------------------------------------------------------------------------------------
+## 3. LWC HTML (`accountList.html`)
+<template if:true={accounts.data}>
+            <template for:each={accounts.data} for:item="acc">
+                <p key={acc.Id}>{acc.Name} - {acc.Industry} </p>
+            </template>
+</template>
+
+   <template lwc:if="data">
+      </template>
+    <template lwc:elseif="error">
+      </template>
+    <template lwc:else>
+      </template>
+    OR
+ <template if:true={accounts.data}>
+    </template>
+ <template if:false={accounts.data}>
+    </template>
+   
+----------------------------------------------------------------------------------------------------------------------------------
+Notice:
+``` javascript '$accountId' ```
+The `$` makes it a **reactive parameter**. When `accountId` changes, Apex runs again automatically.
+---
+# When to Use `@wire`
+   Use wired Apex when:
+* Data is read-only
+* Data should auto-refresh/react to changes
+* You want caching
+* Component should load data automatically 
+---
+# Important Notes
+    * Wired Apex only works with `cacheable=true`
+    * Wire methods are asynchronous
+    * Apex methods must be `static`
+    * `@wire` cannot directly perform DML operations ([Salesforce Stack Exchange][4])
+
+-------------------------------------------------------------------------------------------------------------------------------------
+An imperative call is a way of calling an Apex method from Lightning Web Components (LWC) explicitly (on demand) using JavaScript.
+
+You use imperative calls when:
+Key Characteristics
+        ✅ The method is doing data modification (DML)
+        ✅ Returns a Promise (you handle success/error with .then() / .catch() or async/await)
+        ✅ Used for actions triggered by user events
+        ✅ Async processing       
+---
+            ## Example
+            # 1. Apex Class
+            public with sharing class AccountController {
+                @AuraEnabled
+                public static String createAccount(String accName) {
+                    Account acc = new Account();
+                    acc.Name = accName;
+                    insert acc;
+                    return acc.Id;
+                }
+            }
+```
+----------------------------------------------------------------------------------------------------------------------------
+# 2. LWC JavaScript
+        import { LightningElement, track } from 'lwc';
+        import createAccount from '@salesforce/apex/AccountController.createAccount';
+        export default class CreateAccountDemo extends LightningElement {
+            @track accountName = '';
+            handleNameChange(event) {
+                this.accountName = event.target.value;
+            }
+            handleCreateAccount() {
+                createAccount({ accName: 'ABC Limited' })
+                    .then(result => {
+                        console.log('Account Created Id: ' + result);
+                    })
+                    .catch(error => {
+                        console.error('Error: ', error);
+                    });
+            }
+        }
+        ```
+# When to Use Imperative Calls
+    Use imperative calls for:
+    * Button click actions
+    * Form submission
+    * Insert/update/delete operations
+    * Conditional fetching
+    * Async processing
+Use `@wire` for:
+* Auto-loading data
+* Reactive UI updates
+* Read-only operations
+
+----------------------------------------------------------------------------------------------------------------------------
+
+## 5. Difference between imperative Apex and @wire Apex?
+Acryonym: WIRING
+stands for:
+
+W - When to use - e.g., read vs write operations
+I - Invocation - automatic vs manual
+R - Reactive vs non-reactive
+I - Invocation trigger - component load vs user action
+N - Need for cacheable=true - required vs optional
+G - Get data handling - framework-managed vs manual promise handling
+S - Support Async / await - not supported vs supported
+
+wired return promise-like object with data and error properties, 
+while imperative returns a promise that you handle manually.
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+When `cacheable=true` is REQUIRED
+   No — you do **not always** need `cacheable=true` for imperative calls in Salesforce.
+
+    Summary
+        | Scenario                   | `cacheable=true`         |
+        | -------------------------- | ------------------------ |
+        | `@wire` method             | Required                 |
+        | Imperative read-only fetch | Optional but recommended |
+        | Insert/update/delete       | Not allowed              |
+        | Method changes data        | Not allowed              |
+    
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
+## 6. What is Lightning Data Service (LDS)?
+
+**Answer:**
+
+LDS allows working with Salesforce data without writing Apex. It provides:
+
+* Caching
+* CRUD operations
+* Record-level security enforcement
+
+Examples:
+* lightning-record-form
+* lightning-record-edit-form
+* getRecord wire adapter
+
+It improves performance by sharing cache across components.
+
+---
+
+## 7. How do you handle performance optimization in LWC?
+
+**Answer:**
+Here’s your updated table with an added **Description** column for better clarity:
+
+***
+# ✅ LWC Performance Optimization – Refined Summary Table
+
+Acryonym: DULARE
+| Area              | Optimization                                     | Description                                                                                                                                                        |
+| ----------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Data**          | `@wire` (cacheable), batching, LDS, lazy loading | Minimize server calls by caching responses, batching requests, and using Lightning Data Service. Load data only when required to improve initial load performance. |
+| **UI**            | Small components, conditional rendering          | Break UI into smaller reusable components and render elements only when needed to reduce DOM size and improve maintainability.                                     |
+| **LMS / Pub-Sub** | Efficient communication                          | Use Lightning Message Service or pub-sub selectively to avoid unnecessary cross-component communication and reduce processing overhead.                            |
+| **Apex**          | Efficient queries                                | Write optimized SOQL queries by selecting only required fields, avoiding loops inside queries, and following bulkification practices.                              |
+| **Rendering**     | Use `@track` and getters only when needed        | Use `@track` only when needed, rely on getters for computed values, and avoid unnecessary state updates to reduce re-renders.                                      |
+| **Events**        | Minimal listeners, debouncing                    | Reduce number of event listeners, debounce input events, pass minimal data while sending data in events, and avoid firing events for minor changes.                 
+| **DOM Handling**  | Avoid direct DOM manipulation                    | Use if else conditional rendering instead of hiding elements, minimize loops in templates, and avoid heavy logic in HTML for better performance.                           |
+| **Lists**         | Keys, pagination                                 | Use unique keys for list items and paginate or lazy load large datasets to avoid heavy DOM re-rendering.                                                           |
+
+***
+
+If you want, I can next:
+✅ Convert this into a **downloadable Markdown / Excel file**  
+✅ Add **code examples per row**  
+✅ Expand it into a **full interview-ready revision sheet**
+
+* Use @wire with cacheable=true.
+* Minimize Apex calls.
+* Use lazy loading.
+* Avoid heavy logic inside renderedCallback.
+* Use pagination for large datasets.
+* Use key in for:each loops for efficient DOM rendering.
+* Avoid unnecessary tracked properties.
+
+In large orgs, reducing server round trips significantly improves UI performance.
+
+---
+
+## 8. What are decorators in LWC?
+
+**Answer:**
+
+Decorators modify behavior of properties/methods.
+
+Main decorators:
+
+* @api – Public property/method
+* @wire – Connect to data source
+* @track – Reactive private state
+
+They are part of modern JavaScript decorator pattern implementation in LWC.
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+what is lightning web security
+Lightning Web Security (LWS) is a modern security architecture in Salesforce that provides enhanced protection for Lightning Web Components (LWC) and Aura components.
+It replaces the older Locker Service with a more robust and flexible security model. 
+
+what does LWS do?
+i.   Strict isolation - Enforces strict isolation between components. example: Component A cannot access DOM or JavaScript of Component B.
+ii.  Prevents global objects document.querySelector() 
+iii. Secure proxy layar with this.template.querySelector() - 
+iv.  Security Policy (CSP) - Enforces Content Security Policy (CSP) to restrict loading of external scripts and resources. example: You can only load scripts from Salesforce-approved domains.
+v.   Error handling - Provides better error handling and debugging capabilities. example: Errors related to security violations are more descriptive and easier to debug.
+vi.  Improves performance - * Improves performance by reducing overhead of security checks compared to Locker Service. example: LWS is designed to be more efficient while maintaining strong security.
+
+To enable Lightning Web Security in Salesforce Setup:
+
+## Steps to Enable LWS
+1. Go to **Setup**
+2. In the Quick Find box, search for:
+    ```text
+    Session Settings
+    ```
+3. Open **Session Settings**
+4. Scroll to:
+```text
+Use Lightning Web Security for Lightning web components and Aura components
+```
+5. Check the checkbox
+6. Click **Save**
+---
+
+## Important Notes
+* Most newer orgs already have LWS enabled by default.
+* After enabling:
+  * Test all custom LWCs
+  * Verify third-party libraries
+  * Check DOM manipulation code
+---
+## How to Verify LWS is Active
+Open browser console in a Lightning page and run:
+
+```js
+window.toString()
+```
+You may see proxy-wrapped objects if LWS is active.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+## 9. How do you enforce security in LWC? or Explain LWC security layers in detail?
+*To enforce security in Lightning Web Components (LWC), focus on both **Salesforce platform security** and **secure client-side coding practices**. 
+Here are the main areas you should implement.
+
+# 1. Apex security (Enforce CRUD & FLS in)
+    LWC itself does **not automatically enforce** object permissions and field-level security when calling Apex.
+    Always validate permissions in Apex controllers.
+    ### Example
+```apex
+public with sharing class AccountController {
+    @AuraEnabled(cacheable=true)
+        public static List<Account> getAccounts() {      
+
+        // Object-level check it will throw an error if user doesn't have access to Account object
+        * `isAccessible()`- it will check if the user has access to the object
+        * `isCreateable()`- it will check if the user can create records of the object
+        * `isUpdateable()`- it will check if the user can update records of the object
+
+        if (!Schema.sObjectType.Account.isAccessible()) {
+            throw new AuraHandledException('No Account access');
+        }
+
+        * `WITH SECURITY_ENFORCED` - it will automatically check FLS and throw an error if user doesn't have access to any of the fields in the query.
+
+            // Query with FLS enforcement it will throw an error if user doesn't have access to any of the fields
+            List<Account> accs = [
+                SELECT Id, Name, AnnualRevenue
+                FROM Account
+                WITH SECURITY_ENFORCED
+            ];
+
+        // Extra safety layer it will remove inaccessible fields and records for field and record-level security respectively,
+         it will not throw an error but return only accessible data
+
+        SObjectAccessDecision decision = Security.stripInaccessible(AccessType.READABLE, accs);
+        
+           List<Account> safeRecords = (List<Account>) decision.getRecords();
+           List<Account> removed = (List<Account>) decision.getRemovedFields();
+
+        return safeRecords;
+
+    }
+}
+Use:
+        * `Security.skltripInaccessible()`- it will remove inaccessible fields and records for field and record-level security respectively.
+          AccessType options:
+                    * `READABLE` - for read operations
+                    * `CREATABLE` - for create operations
+                    * `UPDATABLE` - for update operations
+--------------------------------------------------------------------------------------------------------------------
+# 2. Use `with sharing`
+        Always use:
+        ```apex
+        public with sharing class MyController
+        ```
+            This enforces:
+            * Sharing rules (record-level access)
+            * Org-wide defaults
+            * Role hierarchy
+            * Manual sharing
+
+        Without it, users may see records they should not access.
+--------------------------------------------------------------------------------------------------------------------
+# 3. Prefer LDS Over Apex
+    Use Lightning Data Service whenever possible.
+        LDS automatically enforces:
+        * Object Level access (CRUD)
+        * Field Level access (FLS)
+        * Sharing rules (record-level access)
+
+        ### Secure Example
+            import { getRecord } from 'lightning/uiRecordApi';
+            // Define fields
+            import NAME_FIELD from '@salesforce/schema/Account.Name';
+            import INDUSTRY_FIELD from '@salesforce/schema/Account.Industry';
+
+            const FIELDS = [NAME_FIELD, INDUSTRY_FIELD];
+
+            export default class AccountView extends LightningElement {
+                @api recordId; // Record Id passed from the page
+
+                @wire(getRecord, { recordId: '$recordId', fields: FIELDS })
+                account;
+
+                // Getter methods for easy access
+                get name() {
+                    return this.account.data ? this.account.data.fields.Name.value : '';
+                }
+
+                get industry() {
+                    return this.account.data ? this.account.data.fields.Industry.value : '';
+                }
+            }
+    Instead of writing custom Apex.
+--------------------------------------------------------------------------------------------------------------------
+# 4. Use Locker / Lightning Web Security
+        Salesforce provides:
+        * Lightning Locker
+        * Lightning Web Security
+        These isolate components and prevent DOM access across namespaces.
+
+        Ensure:
+        * Lightning Web Security is enabled
+        * Avoid unsupported DOM manipulation
+
+--------------------------------------------------------------------------------------------------------------------
+# 5. Use CSP-Compliant External Libraries - CSP is a browser-level security mechanism enforced by Salesforce.
+        Salesforce enforces a strict Content Security Policy.
+        Upload trusted libraries as:
+        * Static Resources
+        Avoid:
+        * Inline scripts
+        * `eval()`
+        * Unsafe third-party scripts
+--------------------------------------------------------------------------------------------------------------------
+# 6. Use Named Credentials for Callouts
+    Never hardcode:
+    * API keys
+    * Credentials
+    * Tokens
+Use:
+* Named Credentials
+* Protected Custom Metadata
+--------------------------------------------------------------------------------------------------------------------
+# 7. Validate Data Server-Side
+    Never rely only on client validation.
+    Validate in Apex:
+    * Input length
+    * Formats
+    * Business rules
+    * Record ownership
+
+--------------------------------------------------------------------------------------------------------------------
+# 8. Avoid Dynamic SOQL Injection
+### Vulnerable
+```apex
+String q = 'SELECT Id FROM Account WHERE Name = \'' + name + '\'';
+        ### Secure
+        ```apex
+        List<Account> acc = [
+            SELECT Id
+            FROM Account
+            WHERE Name = :name
+        ];
+--------------------------------------------------------------------------------------------------------------------
+# 9. Sanitize User Input
+        Never trust client-side input.
+        ### Bad
+        ```js
+        element.innerHTML = userInput;
+        ```
+        ### Good
+        ```js
+        element.textContent = userInput;
+        ```
+        Avoid:
+        * XSS
+* Script injection
+--------------------------------------------------------------------------------------------------------------------
+# 10. Secure Apex Methods
+Expose only required methods.
+        ### Example
+
+        ```apex
+        @AuraEnabled(cacheable=true)
+        public static String getData() {}
+        ```
+===============================================================================================================================--
+
+## 10. How do you handle large datasets in LWC?
+**Answer:**
+* Use server-side pagination.
+* Use LIMIT and OFFSET in SOQL.
+* Use lazy loading.
+* Use lightning-datatable with virtual scrolling.
+* Avoid loading 10k+ records at once.
+In real enterprise implementations, I design Apex controllers specifically for paginated APIs.
+---
+## 11. What is Lightning Message Service?
+**Answer:**
+Lightning Message Service (LMS) enables communication between:
+* LWC to LMS
+* LWC to Aura
+* LWC to Visualforce
+
+It works across tabs and namespaces. It is the recommended replacement for pub-sub.
+
+---
+
+## 12. What are reactive properties in LWC?
+
+**Answer:**
+A property is reactive when:
+
+    1. Primitive types(string, number, boolean) are reactive by default.
+    2. Objects and arrays are reactive when:
+    - You reassign the entire object/array reference. example - ```js this.obj = { ...this.obj, name: 'alex' }```
+    - Or use `@track` for deep reactivity (less common now).
+    3. Getters are reactive when they depend on reactive properties.
+    4. Wire properties are reactive when their parameters change.
+    5. Template expressions are reactive when they reference reactive properties.
+    6. Event handlers can trigger reactivity when they update reactive properties.   
+
+
+---
+
+## 13. How do you test LWC?
+
+**Answer:**
+
+* Jest framework for JavaScript testing.
+* Apex test classes for backend.
+* Manual testing in Lightning App Builder.
+* Test wire adapters using mocks.
+
+For enterprise-level projects, we maintain Jest coverage for reusable components.
+
+---
+
+## 14. What challenges have you faced in LWC projects?
+
+**Sample Strong Answer:**
+
+* Handling governor limits in Apex.
+* Managing cross-component communication.
+* Handling complex state management.
+* Optimizing performance for large data tables.
+* Migrating Aura components to LWC.
+
+I typically solve these using modular design, service layers in Apex, and reusable utility components.
+
+---
+
+## 15. When would you choose Aura over LWC?
+
+**Answer:**
+Rare cases:
+* When using unsupported features in LWC.
+* When maintaining legacy Aura components.
+* When implementing certain interface-based components not yet supported.
+
+
+Here are **10 tricky and advanced LWC interview questions** designed for a **senior (5+ years) Salesforce developer**. These focus on architecture, edge cases, performance, and real-world experience on the Salesforce platform.
+
+---
+
+## 1. How does LWC reactivity work internally, and what are common pitfalls?
+
+**Answer:**
+
+LWC uses a reactive membrane to track property changes. A component re-renders when:
+
+* A reactive property used in the template changes.
+* A new reference is assigned (for objects/arrays).
+
+**Common pitfalls:**
+* Mutating object properties without reassigning.
+* Updating arrays using push() instead of creating a new array reference.
+* Infinite loops triggered inside renderedCallback().
+
+Correct pattern:
+Instead of:
+this.obj.name = 'New';
+
+Use:
+this.obj = { ...this.obj, name: 'New' };
+
+---
+
+## 2. Why does renderedCallback sometimes cause infinite loops?
+
+**Answer:**
+renderedCallback runs after every render. If you update a reactive property inside it,
+it triggers another render, causing an infinite loop.
+
+Fix:
+
+* Use a boolean flag (hasRendered).
+* Avoid updating tracked properties inside renderedCallback unless necessary.
+* Move logic to connectedCallback when possible.
+
+---
+
+## 3. What are the differences between Lightning Data Service and Apex in terms of caching?
+
+# 🔹 Key Differences (LDS vs Apex Caching)
+
+| Feature          | Lightning Data Service   | Apex (cacheable=true)  | Apex (no cache) |
+| ---------------- | ------------------------ | ---------------------- | --------------- |
+| Caching type     | Automatic                | Opt-in                 | None            |
+| Location         | Client (browser)         | Client (browser)       | Server only     |
+| Invalidation     | Automatic                | Manual (`refreshApex`) | N/A             |
+| Scope            | Shared across components | Per wire usage         | N/A             |
+| Supports DML     | Yes (managed)            | No                     | Yes             |
+| Granularity      | Record-level             | Method response        | N/A             |
+| Developer effort | None                     | Medium                 | None            |
+
+
+## 4. Explain the difference between shallow copy and deep copy in LWC and when it matters.
+
+**Answer:**
+
+Shallow copy copies references of nested objects.
+Deep copy creates completely independent objects.
+
+In LWC, shallow copy using spread operator works for most UI updates, but deep copy is required when:
+
+* Modifying deeply nested structures.
+* Avoiding unintended mutation side effects.
+
+Deep copy example:
+JSON.parse(JSON.stringify(obj)) (with limitations).
+
+---
+
+## 5. How would you design cross-component communication in a large enterprise app?
+**Answer:**
+
+Approach depends on hierarchy:
+
+* Parent → Child: @api
+* Child → Parent: Custom Events
+* Unrelated components: Lightning Message Service (LMS)
+
+For enterprise architecture:
+
+* Use LMS for global state sync.
+* Avoid pub-sub unless necessary.
+* Maintain separation of concerns.
+* Keep messaging channels well documented.
+
+---
+
+## 6. What are wire adapters, and how are they different from calling Apex via @wire?
+
+**Answer:**
+Wire adapters are built-in connectors like:
+import { getRecord } from 'lightning/uiRecordApi';
+* getRecord
+    @wire(getRecord,{recordId:'$recordId', fields: FIELDS})
+    getRecordHandler({data,error}){...}
+
+ import { getObjectInfo } from 'lightning/uiObjectInfoApi';
+ import { getPicklistValues } from 'lightning/uiObjectInfoApi';
+ import ACCOUNT_OBJECT from '@salesforce/schema/Account';
+ import INDUSTRY_FIELD from '@salesforce/schema/Account.Industry';
+
+* getObjectInfo -
+        @wire(getObjectInfo, { objectApiName: ACCOUNT_OBJECT })
+            objectInfoHandler({ data, error }) {
+            if (data) {
+                this.recordTypeId = data.defaultRecordTypeId; 
+                }
+                else if (error) {
+                console.error(error);
+            }
+
+* getPicklistValues
+    @wire(getPicklistValues, { recordTypeId: '$recordTypeId', fieldApiName: INDUSTRY_FIELD })
+            picklistValuesHandler({ data, error }) {
+            if (data) {
+                this.industryOptions = data.values;
+            } else if (error) {
+                console.error(error);
+            } 
+
+The connect directly to LDS.
+
+@wire Apex:
+* Calls custom Apex.
+* Requires cacheable=true.
+* Used for complex queries.
+
+Wire adapters are optimized and preferred when possible.
+
+---
+
+## 7. What happens when multiple @wire services are dependent on each other?
+
+**Answer:**
+Reactive parameters (with $) trigger re-evaluation.
+
+Example:
+    If wire B depends on result of wire A:
+    * Wire A loads first.
+    * When reactive property updates, wire B runs.
+
+Pitfall:
+
+* Undefined parameters can prevent wire execution.
+* Need defensive checks.
+
+Senior-level optimization:
+
+* Chain logic carefully.
+* Use imperative calls when dependency logic is complex.
+
+---
+
+## 8. How do you handle governor limits when building LWC with Apex?
+
+**Answer:**
+
+Strategies:
+* Bulkify Apex methods.
+* Avoid SOQL inside loops.
+* Use selective queries.
+* Implement pagination.
+* Cache data when possible.
+* Use Platform Cache for heavy computations.
+
+From UI side:
+* Minimize server calls.
+* Debounce search inputs.
+* Batch operations.
+
+---
+
+## 10. What are limitations of LWC compared to standard web components?
+# ✅ LWC Features, Limitations & Examples
+
+# ✅ LWC Features vs Limitations vs Syntax
+   Acryonym: SECURECODE
+| ✅ Feature                    | ⚠️ Limitation                           | 🔧 Syntax / Example                |
+| ---------------------------- | --------------------------------------- | ------------------------------------ |
+| Shadow DOM                   | Uses synthetic shadow, not fully native | automatic style scoping in component |
+| Event Handling               | Event retargeting restricts access      | can't use `event.target.value`       |
+| Component-Based Architecture | Cannot run outside Salesforce           | used only in LWC framework           |
+| UI API Integration           | Must rely on Salesforce APIs            | `@wire(getRecord, {...})`            |
+| Reactivity                   | No inline expressions                   | use getter → `{total}`               |
+| Encapsulation                | Limited global CSS override             | styles apply only inside component   |
+| Controlled DOM Access        | No global DOM (`document`) access       | `this.template.querySelector()`      |
+| One-Way Binding              | No two-way binding                      | `{name}` binding                     |
+| Data Security (Locker/LWS)   | Restricted browser APIs                 | no direct `window` modification      |
+| External Libraries           | Must use static resources               | `@salesforce/resourceUrl/lib`        |
+***
+
+***
+* No direct DOM manipulation outside template.
+* Limited third-party library usage due to CSP.
+* No two-way binding.
+* No dynamic template rendering at runtime.
+* Strict module-based architecture.
+
+However, limitations improve security and performance consistency in Salesforce.
+
+---
+
+# Bonus Senior-Level Scenario Question
+
+## 11. You have a datatable with 50k records. How would you design it?
+
+**Strong Answer:**
+
+* Never load 50k at once.
+* Implement server-side pagination.
+* Use LIMIT + OFFSET or keyset pagination.
+* Lazy loading (infinite scroll).
+* Debounce filters.
+* Cache previous pages.
+* Optimize SOQL with indexed fields.
+
+Architecture thinking is what differentiates senior developers.
+
+---
+
+If you'd like, I can now provide:
+
+* Real-time scenario-based architecture questions
+* Advanced debugging questions
+* LWC + Integration interview questions
+* LWC coding challenge questions with solutions

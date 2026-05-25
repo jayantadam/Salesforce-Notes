@@ -1,0 +1,245 @@
+1) Minimum files ( always created )
+When you create a new Aura Component:
+A) .cmp file
+The main markup/UI file
+Example: myComp.cmp
+B) .cmp-meta.xml file
+Metadata/configuration file
+Example: myComp.cmp-meta.xml
+✔ Total minimum files: 2
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------
+# ✅ **Aura Markup Language (AML)**
+It is **XML-based markup** that *looks like HTML*, but is Salesforce’s own XML structure.
+Think of it like this:
+
+    *   ✔ **Structure = XML**
+    *   ✔ **Tags = Custom Aura tags (`aura:component`, `lightning:button`, etc.)**
+    *   ✔ **Can embed HTML inside**
+
+Example:
+```xml
+<aura:component>
+    <h1>Hello</h1>        <!-- HTML Tag -->
+    <lightning:button />   <!-- Aura/Salesforce Tag -->
+</aura:component>
+```
+
+So the correct answer:
+# ⭐ **myComp.cmp is an XML-based component file that supports HTML inside.**
+----------------------------------------------------------------------------------------------------------------------------------------------------------
+## 1) Apex Controller — `AccountCrudController.cls`
+
+```apex
+public with sharing class AccountCrudController {
+
+    // READ
+    @AuraEnabled(cacheable=true)
+    public static List<Account> getAccounts() {
+        return [
+            SELECT Id, Name, Phone, Industry
+            FROM Account
+            ORDER BY CreatedDate DESC
+            LIMIT 200
+        ];
+    }
+
+    // UPDATE (bulk)
+    @AuraEnabled
+    public static void updateAccounts(List<Account> accountsToUpdate) {
+        if (accountsToUpdate == null || accountsToUpdate.isEmpty()) return;
+        update accountsToUpdate;
+    }
+
+    // DELETE (bulk)
+    @AuraEnabled
+    public static void deleteAccounts(List<Id> accountIds) {
+        if (accountIds == null || accountIds.isEmpty()) return;
+        delete [SELECT Id FROM Account WHERE Id IN :accountIds];
+    }
+}
+```
+***
+## 2) Aura Component — `accountCrud.cmp`
+Uses:
+*   `lightning:recordEditForm` to **create** Accounts quickly (no Apex needed for create).
+*   `lightning:datatable` with inline edit to **update**.
+*   Row action to **delete** via Apex.
+
+```xml
+<aura:component controller="AccountCrudController"
+                implements="flexipage:availableForAllPageTypes,force:appHostable"
+                access="global">
+    <aura:attribute name="accounts" type="Account[]"/>
+    <aura:attribute name="columns"  type="List"/>
+    <aura:attribute name="draftValues" type="Object[]"/>
+
+    {!c.doInit}
+
+    <lightning:card title="Account CRUD (Aura)" iconName="standard:account">
+
+        <!-- CREATE -->
+        <div class="slds-p-around_small">
+            <lightning:recordEditForm objectApiName="Account"
+                                      onsuccess="{!c.handleCreateSuccess}">
+                <div class="slds-grid slds-gutters">
+                    <div class="slds-col"><lightning:inputField fieldName="Name"/></div>
+                    <div class="slds-col"><lightning:inputField fieldName="Phone"/></div>
+                    <div class="slds-col"><lightning:inputField fieldName="Industry"/></div>
+                    <div class="slds-col slds-align_absolute-center">
+                        <lightning:button type="submit" label="Create" variant="brand"/>
+                    </div>
+                </div>
+            </lightning:recordEditForm>
+        </div>
+
+        <!-- READ / UPDATE / DELETE -->
+        <div class="slds-p-around_small">
+            {!c.handleRowAction}
+        </div>
+
+    </lightning:card>
+</aura:component>
+```
+
+***
+
+## 3) Client Controller — `accountCrudController.js`
+
+```javascript
+({
+    doInit : function(component, event, helper) {
+        component.set("v.columns", [
+            { label: 'Name', fieldName: 'Name', type: 'text', editable: true },
+            { label: 'Phone', fieldName: 'Phone', type: 'phone', editable: true },
+            { label: 'Industry', fieldName: 'Industry', type: 'text', editable: true },
+            { type: 'action',
+              typeAttributes: { rowActions: [ { label: 'Delete', name: 'delete' } ] } }
+        ]);
+        helper.loadAccounts(component);
+    },
+
+    handleCreateSuccess : function(component, event, helper) {
+        helper.showToast('Success', 'Account created', 'success');
+        helper.loadAccounts(component);
+    },
+
+    handleSave : function(component, event, helper) {
+        const drafts = event.getParam('draftValues') || [];
+        helper.updateAccounts(component, drafts);
+    },
+
+    handleCancel : function(component, event, helper) {
+        component.set('v.draftValues', []);
+    },
+
+    handleRowAction : function(component, event, helper) {
+        const action = event.getParam('action');
+        const row = event.getParam('row');
+        if (action.name === 'delete') {
+            helper.deleteAccounts(component, [row.Id]);
+        }
+    }
+})
+```
+
+***
+
+## 4) Helper — `accountCrudHelper.js`
+
+```javascript
+({
+    loadAccounts : function(component) {
+        const action = component.get("c.getAccounts");
+        action.setCallback(this, (resp) => {
+            if (resp.getState() === "SUCCESS") {
+                component.set("v.accounts", resp.getReturnValue());
+            } else {
+                this.handleError(resp);
+            }
+        });
+        $A.enqueueAction(action);
+    },
+
+    updateAccounts : function(component, drafts) {
+        if (!drafts || !drafts.length) return;
+        // Convert draftValues (plain objects) into Account SObjects
+        const accs = drafts.map(d => ({
+            sobjectType: 'Account',
+            Id: d.Id,
+            Name: d.Name,
+            Phone: d.Phone,
+            Industry: d.Industry
+        }));
+
+        const action = component.get("c.updateAccounts");
+        action.setParams({ accountsToUpdate: accs });
+        action.setCallback(this, (resp) => {
+            if (resp.getState() === "SUCCESS") {
+                this.showToast('Success', 'Changes saved', 'success');
+                component.set('v.draftValues', []);
+                this.loadAccounts(component);
+            } else {
+                this.handleError(resp);
+            }
+        });
+        $A.enqueueAction(action);
+    },
+
+    deleteAccounts : function(component, ids) {
+        const action = component.get("c.deleteAccounts");
+        action.setParams({ accountIds: ids });
+        action.setCallback(this, (resp) => {
+            if (resp.getState() === "SUCCESS") {
+                this.showToast('Deleted', 'Record deleted', 'success');
+                this.loadAccounts(component);
+            } else {
+                this.handleError(resp);
+            }
+        });
+        $A.enqueueAction(action);
+    },
+
+    showToast : function(title, message, variant) {
+        const toast = $A.get("e.force:showToast");
+        if (toast) {
+            toast.setParams({ title, message, variant });
+            toast.fire();
+        } else {
+            alert(`${title}: ${message}`);
+        }
+    },
+
+    handleError : function(resp) {
+        let msg = 'Unknown error';
+        try {
+            const errs = resp.getError();
+            if (errs && errs[0] && errs[0].message) msg = errs[0].message;
+        } catch(e) {}
+        this.showToast('Error', msg, 'error');
+        // eslint-disable-next-line no-console
+        console.error(resp);
+    }
+})
+```
+
+***
+
+## How it works (quick)
+
+1.  **Create**: Uses `lightning:recordEditForm` to insert a new Account. On success, it refreshes the table.
+2.  **Read**: `getAccounts()` loads the latest 200 Accounts.
+3.  **Update**: Inline edit cells → Save → sends changed rows to `updateAccounts()`.
+4.  **Delete**: Row action → `deleteAccounts()` → reload.
+
+***
+
+## Notes / Tips
+
+*   Ensure your profile/perm set has **Read/Create/Edit/Delete** on Account.
+*   You can add filters to `getAccounts()` (e.g., by Industry) and expose as component attributes.
+*   To support **bulk delete**, add a checkbox column and pass selected Ids to `deleteAccounts`.
+
+***
+
+If you actually wanted a **CRUD app in Angular 21** (with service, list, form, and JSONPlaceholder API), say the word and I’ll drop a minimal, production-ready example.

@@ -1,0 +1,386 @@
+1. Remote Site Setting
+ A security whitelist in Salesforce that allows Apex to make HTTP callouts to an external endpoint.❗It does NOT store authentication details
+Purpose
+    Allow outbound callouts to an external URL
+    Prevent unauthorized data exfiltration
+Key Characteristics
+    Only stores protocol + domain
+    Required for Apex callouts (unless using Named Credentials)
+    No credential management
+    Hardcoded auth headers needed in Apex    
+
+Add into - Remote Site URL: https://api.example.com
+Example
+    HttpRequest req = new HttpRequest();
+    req.setEndpoint('https://api.example.com/data');
+    req.setHeader('Authorization', 'Bearer ' + token);
+    req.setMethod('GET');
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+2. Named Credential
+A secure Salesforce abstraction that stores:
+        Endpoint URL
+        Authentication details
+        Automatically injects auth headers
+Purpose
+    Simplify callouts
+    Secure credential storage
+    Remove hardcoded secrets from Apex
+Key Characteristics
+    Supports multiple auth types
+    Automatically handles tokens
+    No Remote Site Setting required
+    Endpoint referenced dynamically
+Supported Authentication
+    No Auth
+    Basic Auth
+    OAuth 2.0
+    AWS Signature
+    JWT Bearer Flow
+Example
+    HttpRequest req = new HttpRequest();
+    req.setEndpoint('callout:My_Named_Credential/data');
+    req.setMethod('GET');
+
+    ✅ No authorization header
+    ✅ No token handling
+    ✅ More secure
+
+Side‑by‑Side Comparison (Interview Gold)
+    | Feature            | Remote Site Setting     | Named Credential                 |
+    | ------------------ | ----------------------- | -----------------------------    |
+    | Purpose            | Allow external callouts | Allow + authenticate callouts    |
+    | Stores credentials | ❌ No                    | ✅ Yes                         |
+    | Security           | Low                     | High                             |
+    | Token handling     | Manual                  | Automatic                        | 
+    | Retry / refresh    | ❌ No                    | ✅ OAuth refresh supported     |
+    | Hardcoded secrets  | ✅ Yes                   | ❌ No                          |
+    | Admin friendly     | ❌                       | ✅                             |
+    | Best practice      | ❌ Legacy                | ✅ Recommended                 |
+    ***
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+OAuth(Open Authorization) is an open standard for access delegation commonly used for token-based authentication and authorization on the internet. 
+It allows users to grant third-party applications limited access to their resources without sharing their credentials.
+In Salesforce, OAuth is used to enable secure integration between Salesforce and external systems. It allows external applications to access Salesforce data and 
+services on behalf of a user or an application without sharing the user's credentials.
+
+                                                                         
+Non browser support - 1.OAuth 1.0 is not insufficient for application without web UI 
+                      2.OAuth 2.0: introduced multiple authorization flows to better support different types of applications and use cases, 
+                                     including those without a web UI.
+Request Signing - 1.OAuth 1.0 requires request signing for each API call, which can be complex to implement and manage.
+                  2.OAuth 2.0 eliminates the need for request signing by using access tokens, simplifying the authentication process for developers. 
+
+Sepration of Roles - 1.OAuth 1.0 does not clearly separate the roles of resource owner, client, and authorization server, leading to confusion in implementation.
+                     2.OAuth 2.0 clearly defines the roles of resource owner, client, authorization server, and resource server,
+                       providing a more structured framework for authentication and authorization.     
+Token Managesment - 1.OAuth 1.0 access token could last one year
+                    2.OAuth 2.0 access token can have short lifetimes (e.g., minutes or hours) and can be refreshed using refresh tokens, 
+                   enhancing security by reducing the risk of token compromise.
+
+client - The application that wants to access the resource server on behalf of the resource owner. It can be a web application, mobile app, or server-side
+        application.
+resource owner - Owns the data of resource server and grants access to client applications. It can  be an end-user or an application that has control over 
+                the resources on the resource server. The resource owner is responsible for granting permission to the client application to access their 
+                 resources on the resource server.
+        example - a user who has an account on a social media platform (resource server) and wants to allow a third-party application (client) 
+                 to access their profile information or post on their behalf.  
+authorization server - The server that issues access tokens to the client after successfully authenticating the resource owner and obtaining authorization.
+                       It is responsible for validating the client's credentials and the resource owner's permissions before granting access.
+        example - the social media platform's authentication server that verifies the user's credentials and issues an access token to the third-party application (client) 
+                  after the user grants permission.               
+resource server - The API which stores the data and is accessed using the access token provided by the authorization server. It validates the access token 
+                  and serves the requested resources to the client if the token is valid and has the necessary permissions.
+        example - the social media platform's API server that hosts the user's profile information and allows access to it using the access token issued
+                   by the authorization server.          
+
+request flow graphicallly structured:
+1. Client initiates the OAuth flow by requesting authorization from the resource owner (user).
+2. The resource owner grants permission to the client application to access their resources on the resource server.
+ example - secret 
+3. The client application receives an authorization grant (e.g., authorization code) from the resource owner.
+4. The client application sends a request to the authorization server to exchange the authorization grant for an access token, including its client credentials (client ID and secret).
+5. The authorization server validates the client's credentials and the authorization grant, and if valid, issues an access token to the client application.
+6. The client application uses the access token to make API calls to the resource server to access the protected resources on behalf of the resource owner.
+
+
+
+
+
+OAuth 2.0 flow actors descending order of interaction:
+     Authorization Server - The server that issues access tokens to the client after successfully authenticating the resource owner and obtaining authorization.
+     Client - The application that wants to access the resource server on behalf of the resource owner.
+     Resource Server -The API which stores the data and is accessed using the access token provided by the authorization server.   
+     Resource Owner - Owns the data of resource server and grants access to client applications.
+
+What is point of oauth in salesforce integration?
+    it provide lmited access(known as scopes) control, allowing users to grant specific permissions to external applications without sharing their credentials.
+     It also enhances security by using tokens instead of passwords for authentication, reducing the risk of credential exposure. 
+     Additionally, OAuth supports various authentication flows, making it flexible for different integration scenarios, 
+     such as user-based or machine-to-machine authentication. Overall, OAuth enables secure and efficient integration between Salesforce
+      and external systems while maintaining user control over data access.
+
+old way setup -> connected apps -> create connected app
+new way setup -> external client app manager -> create external client app
+
+connected app disadvantages:
+    1. Complexity - setting up a connected app with OAuth can be complex and requires understanding of OAuth flows, token management, and security considerations.
+    2. Maintenance - managing connected apps and their credentials can require ongoing maintenance, especially if there are multiple external systems integrating with Salesforce.
+    3. Performance - if not implemented correctly, using connected apps for integration can lead to performance issues due to token expiration, refresh token handling, and API limits.
+    4. Security Risks - if the connected app is not configured securely (e.g., weak client secret, improper permissions), it can pose security risks to the Salesforce org.
+    5. User Experience - for user-based OAuth flows, users may need to authenticate and grant permissions, which can impact the user experience if not handled smoothly.
+
+  External client app advatages:
+1. packageble metadatabased construct - an external client app packageble to be installed in multiple orgs without the need for manual configuration of connected 
+                                        apps in each org.
+2. security - improved  securiry, supports disctinct profile and permission and admin role to set for better access control, and provides a more secure way to manage
+              external integrations.    
+3. support 2nd genration packaging (2Gp)- allows source driven development in scratch orgs and makes mirgration and management of integarion user, easy deployment to multiple orgs, making it ideal for ISVs and enterprise customers with complex integration needs. 
+2. centralized interface to manage and monitor - it provides a centralized interface to manage and monitor connected apps across multiple orgs, making it easier to track usage and access.
+3. security and access control - it allows for better security and access control by providing a single point of management for connected apps and their permissions.
+4. 2gb data storage - it provides a dedicated storage for connected app data, allowing for better organization and management of app-related information.
+
+External Client App Manager
+    External Client App Manager is a feature in Salesforce that allows you to manage and monitor connected apps that are used for external integrations.
+     It provides a centralized interface to view and control the connected apps, their usage, and their access to Salesforce data.
+      You can use the External Client App Manager to:
+    
+create user with appropriate permissions to access the connected app and API endpoints.
+    you should create a dedicated integration user in Salesforce with the necessary permissions to access the connected app and API endpoints. 
+    This user will be used for authentication when the external system calls Salesforce APIs.
+    1. User License -> Salesforce Integration and Profile-> Salesforce API Only System Integrations
+                    OR
+    2. permission set -> system permissions -> API Enabled and API Only User -> assign to the integration user
+
+before creating a connected app, we need to understand the types of apex integration in salesforce. 
+There are two main types of apex integration in salesforce: outbound and inbound.
+For inbound -
+1. create integration user in salesforce with appropriate permissions to access the connected app and API endpoints.
+2. create api user permissions set and assign it to the integration user.
+    steps to api user permissions set:
+    1. Go to Setup → Permission Sets → New Permission Set
+    2. Enter Label (e.g., API User) and API Name (e.g., API_User) → Save
+    3. In the permission set, go to "System Permissions" → Edit → Enable "API Enabled" → Save
+        i) API Enabled	- Access any Salesforce.com API.
+        ii)API Only User - Access Salesforce.com only through a Salesforce.com API.
+    4. Assign the permission set to the integration user.
+
+3. Create Connected App with OAuth 2.0 with client credentials flow in Salesforce
+    Setup → App Manager → New Connected App/External Client App Manager
+    i)Fill Basic Information:
+        * Name: External System Integration
+        * API Name: External_System_Integration
+        * EMail: example@company.com
+    ii)API (Enable OAuth Settings):
+        * Enable OAuth Settings
+        * Set Callback URL (e.g., https://www.getpostman.com/oauth2/callback) 
+            //why we need callback url for external system? -> because after successful authentication, Salesforce will redirect to this URL with the access token 
+            in the response. This allows the external system to receive the access token and use it for subsequent API calls to Salesforce.
+            example: if you are using Postman to test the API, you can set the callback URL to https://www.getpostman.com/oauth2/callback which is provided by Postman 
+            for testing purposes. After you click "Request Token" in Postman, it will handle the OAuth flow and receive the access token in the callback URL.
+        * Select OAuth Scopes - Selected OAuth Scopes
+                                    Full access (full)
+                                    Manage user data via APIs (api)
+                                    Perform requests at any time (refresh_token, offline_access)
+                                    Manage user data via Web browsers (web)
+    iii)Flow Enablement
+        *Enable Client Credentials Flow (if using client credentials flow)        
+    iv) create connected app and wait for it to be active (can take up to 10 minutes)
+    v) set oauth policies (optional) -  
+        *mandatory STEP - go to OAuth Flows and External Client App Enhancements - add username and set "Run As" user for client credentials flow
+        (this user will be used to authenticate and access Salesforce APIs when external system calls Salesforce using client credentials flow)
+        *Permitted Users - set to "Admin approved users are pre-authorized" / allows users
+       *set profile or permission set to allow access to the connected app
+       *set token expiration, refresh token policies, etc.
+       
+    * Save it
+    GO TO SETTING -> oauth settings -> find your connected app -> click on it -> manage consumer details -> note down client id and client secret for authentication.
+
+2. Get Access Token from External System Use OAuth 2.0 flow  to get access token using Client ID and Secret.
+   Get your domain name from Setup-> My Domain -> Current My Domain URL (e.g., https://yourInstance.salesforce.com)
+   Use the access token obtained from the previous step to call Salesforce API endpoints from the external system
+
+    open postman -> create new request -> set method to POST -> enter URL (https://yourInstance.salesforce.com/services/oauth2/token)
+      -> go to Body tab -> select x-www-form-urlencoded -> enter parameters (grant_type, client_id, client_secret)
+       -> password should be in the format: password + security token if password flow is used (e.g., mypassword + 123456)
+       ->grant_type should be "password" for password flow or "client_credentials" for client credentials flow
+       ->click Send -> check response for access token and instance URL.
+3. Make API Call to Salesforce
+        url: https://yourInstance.salesforce.com/services/data/v59.0/sobjects/Lead/
+        method: POST
+        headers: Authorization: Bearer your_access_token
+        body: JSON data for Lead (e.g., {"LastName":"Ravi","Company":"ABC Company","Phone":"9876543210"})
+     Use access token in Authorization header to call Salesforce REST API endpoints.
+4. You can also create **Custom Apex REST API** for complex logic or custom endpoints. Create an Apex class with @RestResource annotation and define methods with
+ @HttpGet, @HttpPost, etc. to handle requests.
+5. For inbound calls, ensure proper authentication and permissions are set up for the connected app and API access.
+6. You can also use **Named Credentials** to manage external endpoints and authentication securely without hardcoding URLs and credentials in Apex code.
+    Example of using Named Credential in Apex:
+        HttpRequest req = new HttpRequest();
+        Http http = new Http();
+        req.setEndpoint('callout:My_Named_Credential/account');
+        req.setMethod('POST');
+        req.setHeader('Content-Type', 'application/json');
+        req.setBody('{"name":"Test Account"}');
+        HttpResponse res = http.send(req);
+
+
+2.create connected app in salesforce to allow external system to authenticate and access salesforce data via
+api calls.
+3.get client id and secret from connected app for authentication.
+4.use oauth 2.0 flow (e.g., password, client credentials) to get access token using client id and secret.
+5.use access token to call salesforce api endpoints from external system.
+======================================================================================================================================================================================================================================================
+OAuth 2.0 is an authorization framework that lets one application access another application’s data without sharing passwords.
+    OAuth 2.0 was standardized in RFC 6749 (2012) and introduced:
+            Token‑based access (access tokens instead of passwords)
+            Multiple authorization flows
+            Scope‑based permissions
+            Separation of login and API access
+        
+earlier oauth 2.0 below things not supported in salesforce, but now we can do all these things in salesforce using connected app and named credentials:
+    1. Perform OAuth authorization flows
+    2. Call token endpoints
+    3. Store access / refresh tokens dynamically
+    4. Refresh expired tokens automatically
+            
+  
+OAuth authentication for your external API calls without writing custom code to handle the OAuth flow. types of oauth authentication flows
+postman params - client_id, client_secret, grant_type (password, client_credentials), username, password (password + security token) to get access token 
+for authentication.
+ grant_type can be:
+    1. password (password flow) - used for user authentication where the client application directly collects the user's credentials (username and password) to obtain an access token. This flow is typically used for trusted applications where the client can securely handle user credentials.
+    2. client_credentials (client credentials flow) - used for machine-to-machine authentication where the client application authenticates using its own credentials (client ID and client secret) without user involvement. This flow is suitable for server-to-server communication where the client application needs to access resources on behalf of itself rather than a user.
+    3. authorization_code (authorization code flow) - used for user authentication where the client application redirects the user to the authorization server for authentication and authorization. After the user grants permission, the authorization server redirects back to the client application with an authorization code, which can be exchanged for an access token. This flow is commonly used for web applications and mobile apps that need to access resources on behalf of a user.
+
+  1. Authorization Code Flow - 
+  In Salesforce, Authorization Code Flow is used for secure OAuth-based integration 
+        where inbound uses Connected Apps for external access, and outbound uses Named Credentials to call external APIs without exposing credentials.
+           where the client application (external system) redirects the user to Salesforce for authentication and authorization. After the user grants permission, 
+        Salesforce redirects back to the client application with an authorization code. you should mannually login one org user to the connected app and grant access 
+        to the app for the first time. After that, the client application can use the obtained access token to make API calls to Salesforce on behalf of the user without 
+        requiring further user interaction until the token expires.
+            1. create connected app in salesforce with OAuth 2.0 and enable authorization code flow.
+            2. set callback URL to receive authorization code after user grants permission.
+            3. user authenticates and grants permission to the connected app.
+            4. client application receives authorization code and exchanges it for an access token.
+            5. client application uses access token to call Salesforce APIs on behalf of the user.
+            6. access token can be refreshed using refresh token if needed.
+
+login url: https://yourInstance.salesforce.com/services/oauth2/authorize?response_type=code&client_id=your_client_id&redirect_uri=https://www.getpostman.com/oauth2/callback&scope=full%20api%20refresh_token
+    step to get access token using authorization code flow:
+    1. User tries to access a protected resource in the client application (e.g., a web app).
+    2. The client application redirects the user to the authorization server's authorization endpoint, including parameters such as client_id, redirect_uri,
+     response_type=code, and scope.
+    3. The user authenticates with the authorization server and grants permission to the client application.
+    4. The authorization server redirects the user back to the specified redirect_uri with an authorization code in the URL parameters.
+         Example of redirect URL after user grants permission: https://www.getpostman.com/oauth2/callback?code=aPrxv9
+    5. The client application receives the authorization code and sends a POST request to the authorization server's token endpoint, including the authorization code,
+        client_id, client_secret, and redirect_uri to exchange it for an access token.
+    Example of access token endpoint request:
+            POST https://yourInstance.salesforce.com/services/oauth2/token
+            Content-Type: application/x-www-form-urlencoded
+            grant_type=authorization_code
+            code=aPrxv9
+            client_id=your_client_id
+            client_secret=your_client_secret
+            redirect_uri=https://www.getpostman.com/oauth2/callback
+    6. The client application uses the access token to call Salesforce APIs on behalf of the user. If the access token expires, the client application can use the 
+    refresh token to obtain a new access token without requiring the user to re-authenticate.
+
+example of using access token to call Salesforce API:
+    GET https://yourInstance.salesforce.com/services/data/v59.0/sobjects/Account
+    Authorization: Bearer your_access_token
+                or 
+    POST https://yourInstance.salesforce.com/services/data/v59.0/sobjects/Lead/
+    Authorization: Bearer your_access_token
+    Content-Type: application/json
+    Body: {"LastName":"Ravi","Company":"ABC Company","Phone":"9876543210"}
+        -     https://www.youtube.com/watch?v=tuY_3sS6HNw&list=PLVkIhngCGwAs7HIi_isiaDQCMtZYGamsU&index=2
+
+# 3️⃣ Inbound vs Outbound – Quick Comparison
+                | Aspect        | Outbound                        | Inbound         |
+                | ------------- | ------------------------------- | --------------- |
+                | Config Object | Named Credential, Auth Provider | Connected App   |
+                | OAuth Client  | Salesforce                      | External App    |
+                | Token Stored  | Salesforce (Named Credential)   | External App    |
+                | Auth Server   | External System                 | Salesforce      |
+                | APIs Called   | External APIs                   | Salesforce APIs |
+
+2. client credentials flow - Client Credentials Flow in Salesforce is used for machine-to-machine integration where outbound uses Named Credentials to call external APIs,
+                and inbound uses Connected Apps with a Run As User to allow external systems to access Salesforce APIs without user interaction.
+                The client authenticates with the authorization server using its client ID and secret to obtain an access token.
+                inbound flow - external system calls Salesforce API using access token obtained from connected app's OAuth flow.
+                outbound flow - Salesforce calls external API using access token obtained from named credential's OAuth flow. 
+
+            Named credentials with OAuth 2.0 support can be used to set up the authorization code flow for a web application that needs to access
+                    an external API on behalf of the user.
+
+            1. User tries to access a protected resource in the client application (e.g., a web app).
+            2. The client application redirects the user to the authorization server's authorization endpoint, including parameters such as client_id, redirect_uri, 
+                response_type=code, and scope.
+            3. The user authenticates with the authorization server and grants permission to the client application.
+            4. The authorization server redirects the user back to the specified redirect_uri with an authorization code in the URL parameters.
+            5. The client application receives the authorization code and sends a POST request to the authorization server's token endpoint,
+                including the authorization code, client_id, client_secret, and redirect_uri to exchange it for an access token.
+                                                        
+
+1. Outbound or callouts - The request is made from Salesforce org to an external system. 
+   Concepts:
+     i. Named Credentials / Remote Site Settings
+     ii. External credentials 
+     iii Rest API callouts (HTTP methods, authentication, etc.)
+2. Inbound or call-ins - The request is made from an external system to Salesforce org. 
+   Concepts:
+     i.  Connected App
+     ii.  Custom Apex REST API (@RestResource)
+     iii. Authentication (OAuth, JWT, etc.)   
+
+why we need to set up remote site settings for outbound callouts in Salesforce?
+    Salesforce requires you to define Remote Site Settings to specify which external domains your Salesforce org can communicatete with. 
+    This is a security measure to prevent unauthorized callouts to external systems. By setting up Remote Site Settings, you explicitly allow Salesforce to
+    make HTTP callouts to the specified external URLs.
+
+setup -> remote site settings -> add new remote site -> enter name and url of external system -> save
+
+Named credentials in salesforce
+    named credentials is a secure way to store and manage authentication credentials for external systems in Salesforce. It allows you to define the endpoint URL,
+    authentication type, and credentials in one place, and then reference it in your Apex code or Flow without hardcoding sensitive information.
+    To set up Named Credentials:
+    1. Go to Setup → Named Credentials → New Named Credential
+    2. Enter the following details:
+    - Label: My External API 
+    - Name: My_External_API
+    - URL: https://api.external-system.com
+    - Identity Type: Named Principal (or Per User if you want to use different credentials for each user)
+    - Authentication Protocol: Choose the appropriate authentication method (e.g., Password Authentication, OAuth 2.0, etc.)
+    - Enter the required credentials based on the chosen authentication protocol (e.g., username, password, client ID, client secret, etc.)
+
+        Rest API Outbound (Salesforce calls external system)
+        1. Use HTTP Callouts in Apex to send data to external system.
+        call the API from Apex or Flow as needed.
+            HttpRequest req=new HttpRequest();
+            Http http=new Http();
+            req.setEndpoint('https://jsonplaceholder.typicode.com/users/1');
+            req.setMethod('GET');
+            req.setHeader('Content-Type','application/json');
+            HttpResponse res=http.send(req);
+            system.debug('API Response: ' + res.getBody());
+
+        2. You can also call external REST API from Flow using HTTP Callout action.
+            HTTP Callout in Flow:
+            - Method: POST
+            - URL: https://external-system.com/api/notify
+            - Body: {"message":"Opportunity Closed Won"}
+        3. For authentication, you can use Named Credentials to manage endpoint and credentials securely.
+        4. You can also use External Services to connect to external REST APIs without writing code by importing API schema.
+        5. For complex integrations, consider using middleware platforms like Mulesoft, Zapier, or Workato to connect Salesforce with external systems without heavy coding.
+
+
+Connected App Inbound (External system calls Salesforce)
+        
+
+
+
+
+
+

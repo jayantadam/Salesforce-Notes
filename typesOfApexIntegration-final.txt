@@ -1,0 +1,102 @@
+typesoIn Salesforce, **Apex integration** refers to using Apex code to connect Salesforce with external systems. These integrations are mainly categorized based on how data flows between systems.
+
+Here are the key types of Apex integration:
+
+---
+
+### 🔌 1. **Apex Callouts (Outbound Integration)**
+
+Salesforce (via Apex) sends requests to external systems.
+
+**Types of callouts:**
+
+* **REST Callouts** → Uses HTTP methods (GET, POST, PUT, DELETE)
+* **SOAP Callouts** → Uses WSDL-based web services
+
+📌 Example: Sending customer data from Salesforce to a payment gateway.
+
+---
+
+### ⬅️ 2. **Apex Web Services (Inbound Integration)**
+
+External systems call Apex methods to send or retrieve data.
+
+**Types:**
+
+* **REST Apex Web Services** (`@RestResource`)
+* **SOAP Apex Web Services** (`webService` keyword)
+
+📌 Example: A mobile app pushing order data into Salesforce.
+
+---
+
+### 🔄 3. **Asynchronous Apex Integration**
+
+Used when integration processes take time or need to handle large data.
+
+**Types:**
+
+* `@future` methods (for simple async callouts)
+* **Queueable Apex**
+* **Batch Apex**
+* **Schedulable Apex**
+
+📌 Example: Syncing large datasets with an external ERP system.
+
+---
+
+### 📡 4. **Streaming & Event-Based Integration**
+
+Real-time communication using events.
+
+**Types:**
+
+* **Platform Events**
+* **Change Data Capture (CDC)**
+* **PushTopics**
+
+📌 Example: Notifying an external system when a record is updated.
+
+---
+
+### 🔐 5. **Secured Integration (Authentication-Based)**
+
+Ensures safe communication with external systems.
+
+**Common methods:**
+
+* OAuth 2.0
+* Named Credentials
+* JWT (JSON Web Token)
+
+📌 Example: Secure API communication with a third-party service.
+
+---
+
+### 🧩 6. **Composite & Chained Callouts**
+
+* Combine multiple API calls into one request.
+* Improves performance and reduces API limits usage.
+
+📌 Example: Creating an account and contact in a single API transaction.
+
+---
+
+### 🕒 7. **Scheduled Integration**
+
+* Runs integration at fixed intervals.
+* Uses **Schedulable Apex**.
+
+📌 Example: Daily data sync between Salesforce and a legacy system.
+
+---
+
+### 🧠 Key Idea
+
+* **Outbound (Callouts)** → Salesforce → External system
+* **Inbound (Web Services)** → External system → Salesforce
+* **Async/Event-Based** → For performance and real-time updates
+
+---
+
+If you want, I can also give you **interview questions, code examples, or diagrams** for Apex integration.

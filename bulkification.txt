@@ -1,0 +1,358 @@
+Account shareing
+  type of flows in salesforce
+    type of class in apex
+    batch apex syntax
+    sync apex vs async apex
+
+when productline added update the total count in opportunity object with last productline createdDate;
+
+decoraters in lwc
+track wire api
+
+syntax of calling apex method from lwc
+   passing parameter from lwc to apex
+   calling apex method on button click in lwc
+
+   before making callout basic setup or config we have to salesforce
+
+@wire(messageContext) messageContext;
+
+wire(AppexMethodName,{param:'$propertyName'})
+    getData({data,error}){
+    if(data){
+    //do something
+    }
+    if(error){
+    //handle error
+    }
+    };
+
+# 🚀 **What Is Bulkification in Salesforce?**
+
+**Bulkification** is the practice of writing Apex code (especially triggers) so that it can handle **multiple records at once** instead of assuming only one record is being processed.
+
+Salesforce processes records in batches (typically **up to 200 per transaction**) to maintain system performance and governor limits.  
+If your code only works for **one record at a time**, it will break or hit limits when multiple records are inserted/updated.
+
+***
+
+# 🔥 Why Bulkification Matters
+
+### Without bulkification, your code may:
+
+❌ Hit SOQL 100-query limits  
+❌ Hit DML 150-operation limits  
+❌ Fail when processing imports from Data Loader / API  
+❌ Crash during mass updates, list views, workflows, flows, etc.
+
+### With bulkification, your code:
+
+✔ Handles list of records safely  
+✔ Uses fewer SOQL & DML operations  
+✔ Scales during bulk loads  
+✔ Avoids exceptions and governor‑limit errors
+
+***
+
+# 🧠 **How Triggers Work Behind the Scenes**
+
+Even if a user edits **one record**, Salesforce may process:
+
+*   Up to **200 records per trigger execution**
+*   In **Bulk API**, it can process thousands (in 200-record chunks)
+
+Hence, your Apex **must always** be bulkified.
+
+***
+
+# 🧩 Bulkified vs Non‑Bulkified Example
+
+## ❌ **Non‑Bulkified Trigger (BAD)**
+
+```apex
+trigger AccountTrigger on Account (before insert) {
+    for (Account acc : Trigger.new) {
+        Contact c = [SELECT Id FROM Contact WHERE AccountId = :acc.Id LIMIT 1];
+        insert c;
+    }
+}
+```
+
+**Issues**:
+
+*   SOQL inside loop → up to 200 queries
+*   DML inside loop → up to 200 DML operations
+*   Guaranteed to hit governor limits
+
+***
+
+## ✅ **Bulkified Version (GOOD)**
+
+```apex
+trigger AccountTrigger on Account (before insert) {
+
+    Set<Id> accIds = new Set<Id>();
+    for (Account acc : Trigger.new) {
+        if (acc.Id != null) accIds.add(acc.Id);
+    }
+
+    Map<Id, Contact> existingContacts = new Map<Id, Contact>(
+        [SELECT Id, AccountId FROM Contact WHERE AccountId IN :accIds]
+    );
+
+    List<Contact> contactsToInsert = new List<Contact>();
+
+    for (Account acc : Trigger.new) {
+        if (!existingContacts.containsKey(acc.Id)) {
+            contactsToInsert.add(new Contact(
+                FirstName = 'Default',
+                LastName  = 'Contact',
+                AccountId = acc.Id
+            ));
+        }
+    }
+
+    if (!contactsToInsert.isEmpty()) {
+        insert contactsToInsert; // One DML, not 200
+    }
+}
+```
+
+✔ No SOQL inside loop  
+✔ No DML inside loop  
+✔ Uses collections (Sets, Maps, Lists)  
+✔ Handles bulk loads perfectly
+
+***
+
+# 🧰 Key Bulkification Techniques
+
+### 1. **Move SOQL queries outside loops**
+
+```apex
+List<Account> accList = [SELECT Id FROM Account WHERE ...];
+```
+
+### 2. **Move DML operations outside loops**
+
+```apex
+insert listOfRecords;
+```
+
+### 3. **Use Collections**
+
+*   `List<Opportunity>`
+*   `Set<Id>`
+*   `Map<Id, Account>`
+
+### 4. **Use Maps for Fast Lookups**
+
+```apex
+Map<Id, Account> accMap = new Map<Id, Account>(accList);
+```
+
+### 5. **Design for 200 Records Always**
+
+Triggers fire in batches → write logic for lists, not single records.
+
+### 6. **Use Helper Classes**
+
+Never write heavy logic inside triggers.
+
+### 7. **Use Trigger Context Variables**
+
+*   `Trigger.new`
+*   `Trigger.oldMap`
+*   `Trigger.isBefore`
+*   `Trigger.isUpdate`
+
+***
+
+# 🧨 Common Anti‑Patterns (to avoid)
+
+❌ SOQL inside loops  
+❌ DML inside loops  
+❌ Assuming only 1 record triggers your code  
+❌ Hardcoding IDs  
+❌ Not using Sets/Maps  
+❌ Querying same object repeatedly
+
+***
+
+# 📦 Bulkified Trigger Framework (Best-Practice Pattern)
+
+```apex
+trigger OpportunityTrigger on Opportunity (before insert, before update) {
+    if (Trigger.isInsert) {
+        OppTriggerHandler.beforeInsert(Trigger.new);
+    }
+    if (Trigger.isUpdate) {
+        OppTriggerHandler.beforeUpdate(Trigger.new, Trigger.oldMap);
+    }
+}
+```
+
+```apex
+public class OppTriggerHandler {
+    public static void beforeInsert(List<Opportunity> newList) {
+        // Bulk logic here
+    }
+
+    public static void beforeUpdate(List<Opportunity> newList, Map<Id, Opportunity> oldMap) {
+        // Bulk logic here
+    }
+}
+```
+
+This is robust, testable, and recommended.
+
+***
+==============================================================================================================================================================================================
+# 🎯 When Interviewers Ask “What is Bulkification?”
+
+You answer:
+
+> **Bulkification is the practice of writing Apex code so it can handle multiple records at once. Salesforce processes records in batches (up to 200),
+ so we avoid SOQL/DML inside loops, use collections, and design logic to scale for bulk operations.**
+
+
+Short answer: **Yes — those limits *absolutely* matter for bulkification**, and they are exactly the reason bulkification exists.
+
+But let’s break it down properly so you understand **how these limits relate to bulkification** and whether the numbers you listed are correct.
+
+***
+
+# ✅ **Do these limits apply during bulkification?**
+
+Yes. These are **per‑transaction governor limits**, meaning a single trigger execution handling up to 200 records must stay within these limits.
+
+Here’s how each one connects to bulkified Apex:
+
+***
+
+# 🔍 **1. SOQL Query Limit — 100 per transaction**
+
+👉 Directly relevant to bulkification  
+❗ If you write SOQL *inside a loop*, the trigger can break instantly.
+
+            **BAD (non‑bulkified):**
+
+            ```apex
+            for (Account a : Trigger.new) {
+                Account acc = [SELECT Id FROM Account WHERE Id = :a.Id];
+            }
+```
+
+→ Could run 200 SOQL queries → ❌ limit exceeded
+
+                **GOOD (bulkified):**
+
+                ```apex
+                Set<Id> accIds = new Set<Id>();
+                for (Account a : Trigger.new) accIds.add(a.Id);
+
+                List<Account> accList = [
+                    SELECT Id FROM Account WHERE Id IN :accIds
+            ];
+                ```
+
+***
+
+# 🔍 **2. DML Statement Limit — 150 per transaction**
+
+👉 Essential for bulkification  
+❗ DML inside loop = guaranteed bulk failure.
+
+            **BAD:**
+
+            ```apex
+            for (Contact c : contacts) {
+                insert c;
+            }
+            ```
+
+            **GOOD:**
+
+            ```apex
+            insert contacts; // one DML
+            ```
+
+            ***
+
+# 🔍 **3. Records Retrieved by SOQL — 50,000**
+
+👉 Also important  
+Bulkification helps reduce the chance of exceeding this.
+
+        If you write:
+
+        ```apex
+        SELECT Id FROM Contact // no WHERE clause
+        ```
+
+        …you risk hitting the 50k record limit.
+
+        Bulkified code always tries to **filter by specific IDs** (e.g., `WHERE AccountId IN :ids`), which keeps record counts low.
+
+        ***
+
+# 🔍 **4. CPU Time — \~10,000 ms (10 seconds)**
+
+            👉 Very important  
+            Bulk operations can cause heavy loops.
+
+            Non‑bulkified code accidentally does something like:
+
+            *   200 × nested loops
+            *   complex recursion
+            *   repeated logic per record
+
+            Bulkified code processes lists efficiently, reducing CPU usage.
+
+            ***
+
+# 🔍 **5. Heap Size — 6 MB (sync), 12 MB (async)**
+
+            👉 Relevant but less often hit  
+            Common heap issues:
+
+            *   Large Maps (e.g., storing 50k records)
+            *   Very large queries
+            *   Big JSON/XML payloads
+
+            Bulkification helps by reducing unnecessary object creation.
+
+***
+
+# 🎯 **Summary — Are These Limits Part of Bulkification?**
+
+| Limit                   | Required Knowledge? | Why It Matters                          |
+| ----------------------- | ------------------- | --------------------------------------- |
+| SOQL Count (100)        | ✅ Yes               | Prevents SOQL-in-loop failures          |
+| DML Count (150)         | ✅ Yes               | Prevents DML-in-loop failures           |
+| Records Retrieved (50k) | ✅ Yes               | Prevents massive queries                |
+| CPU Time (10s)          | ⚠ Important         | Bulk code reduces execution time        |
+| Heap (6 MB)             | ⚠ Useful            | Bulk code avoids huge in-memory objects |
+
+**So yes — everything you listed is relevant to bulkification.**
+
+***
+
+# 🧠 **If an interviewer asks: “What is bulkification?”**
+
+A perfect answer is:
+
+> Bulkification is the practice of writing Apex so that it can handle multiple records in a single transaction without hitting
+ governor limits such as SOQL (100), DML (150), heap size (6 MB), CPU time (10 seconds), and the 50k record retrieval limit. This means no SOQL/DML inside loops,
+ using collections and maps, and executing operations in batches.
+
+***
+
+If you want, I can also give you:
+
+✔ A bulkification cheat sheet (.md file)  
+✔ A full trigger framework  
+✔ Interview Q\&A on bulkification  
+✔ Real trigger examples before & after bulkification
+
+Just tell me!

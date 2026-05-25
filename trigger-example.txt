@@ -1,0 +1,410 @@
+Absolutely—here are **realistic, interview‑style Salesforce Trigger logical scenarios** designed to test practical thinking, bulk safety, order of execution, recursion handling, security, and async patterns. Each scenario includes **requirements**, **constraints**, **what they’re testing**, **acceptance checks**, and **hints/gotchas**. Where helpful, I’ve added short **Apex skeletons** (kept minimal so you can whiteboard fast).
+
+
+## 1) Opportunity “Closed Won” → Create Project\_\_c (Idempotent)
+
+**Story**  
+When an Opportunity’s `StageName` changes to “Closed Won”, create a `Project__c` (lookup to Opportunity)
+and set `Project_Manager__c = Opportunity.OwnerId`. Prevent duplicates if the record is edited multiple times.
+
+**Constraints & Tests**
+*   Bulk updates (≥200 Opportunities).
+*   Only when stage **changes** to Won (delta check).
+*   Don’t create a second Project if one already exists.
+*   After Update context (need Opp Id).
+
+**What’s being tested**  
+Delta detection, idempotency, bulkification, single query + single DML.
+
+**Hints / Gotchas**
+
+*   Collect Won Opp Ids with an old→new stage check.
+*   Query existing Projects in one SOQL.
+*   Insert only missing Projects.
+
+**Skeleton**
+
+```apex
+trigger OpportunityTrigger on Opportunity (after update) {
+    Set<Id> wonIds = new Set<Id>();
+    for (Opportunity o : Trigger.new) {
+        Opportunity oldO = Trigger.oldMap.get(o.Id);
+        if (o.StageName == 'Closed Won' && oldO.StageName != 'Closed Won') wonIds.add(o.Id);
+    }
+    if (wonIds.isEmpty()) return;
+
+    Set<Id> alreadyHasProject = new Set<Id>();
+
+    for (Project__c p : [SELECT Opportunity__c FROM Project__c WHERE Opportunity__c IN :wonIds]) {
+        alreadyHasProject.add(p.Opportunity__c);
+    }
+
+    List<Project__c> toInsert = new List<Project__c>();
+    for (Opportunity o : [SELECT Id, OwnerId FROM Opportunity WHERE Id IN :wonIds]) {
+        if (!alreadyHasProject.contains(o.Id)) {
+            toInsert.add(new Project__c(Opportunity__c = o.Id, Project_Manager__c = o.OwnerId));
+        }
+    }
+    if (!toInsert.isEmpty()) insert toInsert;
+}
+
+***
+
+## 2) Lookup Rollup: Quote\_\_c → Opportunity (Sum Net\_Amount\_\_c)
+
+**Story**  
+Keep `Opportunity.Amount` equal to the sum of related `Quote__c.Net_Amount__c` via Lookup (not Master‑Detail).
+
+**Constraints & Tests**
+
+*   Trigger on Quote\_\_c for **insert/update/delete/undelete**.
+*   Bulk safe, default Opportunity.Amount to 0 if no Quotes.
+*   No recursion if other automation touches `Amount`.
+
+**Skeleton (core aggregation loop)**
+
+```apex
+
+Set<Id> oppIds = new Set<Id>();
+for (Quote__c q : Trigger.new) oppIds.add(q.Opportunity__c);
+for (Quote__c q : Trigger.old) oppIds.add(q.Opportunity__c);
+
+Map<Id, Decimal> sumByOpp = new Map<Id, Decimal>();
+
+for (AggregateResult ar : [
+    SELECT Opportunity__c opp, SUM(Net_Amount__c) total
+    FROM Quote__c
+    WHERE Opportunity__c IN :oppIds
+    GROUP BY Opportunity__c
+]){
+    sumByOpp.put((Id) ar.get('opp'), (Decimal) ar.get('total'));
+}
+
+List<Opportunity> ups = new List<Opportunity>();
+for (Id oppId : oppIds) {
+    ups.add(new Opportunity(Id=oppId, Amount = sumByOpp.containsKey(oppId) ? sumByOpp.get(oppId) : 0));
+}
+update ups;
+```
+
+***
+
+## 3) Prevent Account Owner Change if Open Opportunities Exist
+
+**Story**  
+Disallow changing `Account.OwnerId` if the Account has **any** open Opportunities.
+
+**Constraints & Tests**
+
+*   **Before update** on Account.
+*   Bulk owner transfers; precise and selective SOQL.
+*   User‑friendly error on `OwnerId` field.
+
+**What’s being tested**  
+Validation via `addError`, selective queries, bulk logic.
+
+**Hints / Gotchas**
+
+*   Only check records where `OwnerId` actually changed.
+*   One SOQL using `IN :accountIds` and filter `IsClosed = false`.
+
+**Skeleton**
+
+```apex
+trigger AccountTrigger on Account (before update) {
+    Set<Id> toCheck = new Set<Id>();
+    for (Account a : Trigger.new) {
+        Account oldA = Trigger.oldMap.get(a.Id);
+        if (a.OwnerId != oldA.OwnerId) toCheck.add(a.Id);
+    }
+    if (toCheck.isEmpty()) return;
+
+    Set<Id> blocked = new Set<Id>();
+    for (AggregateResult ar : [
+        SELECT AccountId a, COUNT(Id) c
+        FROM Opportunity
+        WHERE AccountId IN :toCheck AND IsClosed = false
+        GROUP BY AccountId
+    ]) {
+        if (((Integer)ar.get('c')) > 0) blocked.add((Id)ar.get('a'));
+    }
+
+    for (Account a : Trigger.new) {
+        if (blocked.contains(a.Id)) a.OwnerId.addError('Owner cannot be changed while open Opportunities exist.');
+    }
+}
+```
+
+***
+
+## 4) Contact Auto‑Link by Email Domain
+
+**Story**  
+On Contact insert/update, if `Email` domain matches an Account’s `Domain__c`, link the Contact to that Account (set `AccountId`).
+
+**Constraints & Tests**
+
+*   Handle bulk inserts/updates.
+*   Deterministic behavior if multiple Accounts share a domain (pick one or add error—discuss policy).
+*   Respect security in service class (if required).
+
+**What’s being tested**  
+String parsing, maps, conflict resolution, bulk safety.
+
+**Hints / Gotchas**
+
+*   Parse domains in memory; build `Map<String, Id>` of Accounts.
+*   Normalize case (lowercase); handle null/invalid emails.
+
+***
+
+## 5) Case Delete/Undelete → Maintain Account Counters
+
+**Story**  
+Maintain `Account.Open_Cases__c` count. Decrement after Case delete, increment after undelete. Updates/inserts also need recalculation.
+
+**Constraints & Tests**
+
+*   Trigger on Case: after insert/update/delete/undelete.
+*   Aggregate by Account; default to 0 if none.
+*   Support Accounts with no Cases.
+
+**What’s being tested**  
+Multi‑context design, aggregate defaults, consistent arithmetic vs. re-aggregation.
+
+**Hints / Gotchas**
+
+*   Prefer **re‑aggregation** for correctness (idempotent).
+*   Watch for Cases without Account (null parent).
+
+***
+
+## 6) Subscription\_\_c Rollup (Active Count + MRR) to Account
+
+**Story**  
+On `Subscription__c` (Lookup to Account), maintain:
+
+*   `Account.Active_Subscriptions__c` = count of `Status__c = 'Active'`
+*   `Account.MRR__c` = SUM of `Monthly_Fee__c` for active subs
+
+**Constraints & Tests**
+
+*   All DML contexts; bulk safe; reset to 0 when no active subs.
+*   Avoid recursion (field updates on Account should not re-trigger child recalcs unnecessarily).
+
+**What’s being tested**  
+AggregateResult, multi-context, idempotency, performance.
+
+**Hints / Gotchas**
+
+*   Use one grouped query with `WHERE Status__c = 'Active'`.
+*   Update only Accounts affected by trigger records.
+
+***
+
+## 7) Async Callout: Task Type “Onboarding” → Notify External System
+
+**Story**  
+When a Task with `Type = 'Onboarding'` is created for a Contact, call an external onboarding API.
+
+**Constraints & Tests**
+
+*   Triggers cannot do synchronous callouts → use **Queueable** with `AllowsCallouts`.
+*   Bulk‑safe: enqueue once per Task.
+*   Resilient error handling (log failures).
+
+**What’s being tested**  
+Async design from triggers, re‑query fresh state, minimal payload, error logging.
+
+**Hints / Gotchas**
+
+*   Pass only Task Ids to Queueable and re‑query inside.
+*   Consider retries or a DLQ object.
+
+**Skeleton (handoff)**
+
+```apex
+if (Trigger.isAfter && Trigger.isInsert) {
+    for (Task t : Trigger.new) {
+        if (t.Type == 'Onboarding' && t.WhoId != null) {
+            System.enqueueJob(new OnboardingQueueable(t.Id));
+        }
+    }
+}
+```
+
+***
+
+## 8) Mixed DML: Create User Then Touch Accounts
+
+**Story**  
+Business requires creating a `User` and then updating related `Account` fields in the same logical operation; triggers must avoid Mixed DML errors.
+
+**Constraints & Tests**
+
+*   Separate setup (User) DML from non‑setup (Account) DML.
+*   Ensure data consistency if the second step fails.
+
+**What’s being tested**  
+Transaction boundaries, Queueable/Future patterns, compensation strategies.
+
+**Hints / Gotchas**
+
+*   Orchestrate with Platform Events or Queueable to split transactions.
+*   Persist correlation keys for reconciliation.
+
+***
+
+## 9) Prevent Self‑Referencing Hierarchies on Custom Object
+
+**Story**  
+On `Department__c` with `Parent__c` lookup to self, prevent a record from referencing itself anywhere in its ancestor chain (no cycles).
+
+**Constraints & Tests**
+
+*   **Before insert/update**.
+*   Bulk operations on multiple nodes.
+*   Efficient traversal (avoid deep recursion/timeouts).
+
+**What’s being tested**  
+Graph logic, defensive checks, CPU efficiency.
+
+**Hints / Gotchas**
+
+*   Build a parent map by querying needed ancestors once.
+*   Walk up the chain until null or a repeated Id is found; `addError` when cycle detected.
+
+***
+
+## 10) Inventory Reservation from OpportunityLineItem
+
+**Story**  
+When an `OpportunityLineItem` is added or its quantity changes, create/update `Inventory_Reserve__c` for the related `Product2`. Release reservations on delete and adjust on undelete.
+
+**Constraints & Tests**
+
+*   All OLI contexts; avoid double reservation; handle bulk.
+*   Respect stock limits; if over‑reserved, addError or cap strategically.
+
+**What’s being tested**  
+Cross‑object synchronization, idempotency, conflict handling, aggregate queries.
+
+**Hints / Gotchas**
+
+*   Aggregate total requested per Product per Opportunity in memory.
+*   Handle delete/undelete symmetry cleanly.
+
+***
+
+## 11) Opportunity “High Value” Flag Based on Historical Revenue
+
+**Story**  
+Set `Opportunity.High_Value__c = true` if the sum of **Closed Won** Opp Amounts for the **same Account in the last 365 days** exceeds a threshold (from Custom Metadata). Evaluate on Opp insert/update.
+
+**Constraints & Tests**
+
+*   Bulk safe; date filters; configurable threshold.
+*   Avoid wide queries; selective conditions.
+
+**What’s being tested**  
+Config-driven triggers, date math, selective SOQL, performance.
+
+**Hints / Gotchas**
+
+*   Load threshold from CMDT once per transaction.
+*   Query only Won Opps for affected Accounts with a date filter.
+
+***
+
+## 12) Case SLA Breach → Escalation Ticket (Avoid Infinite Loops)
+
+**Story**  
+If `Case.SLA_Breach__c = true`, create an `Escalation__c` and update Case `Priority = 'High'`. Avoid recursion if a later process updates the Case again.
+
+**Constraints & Tests**
+
+*   Idempotency: only one Escalation per Case per breach event.
+*   Bulk safe; recursion guard.
+
+**What’s being tested**  
+Recursion control, event‑style design, idempotent flags.
+
+**Hints / Gotchas**
+
+*   Use a flag field or check for existing open Escalation\_\_c linked to Case.
+*   Only update Priority if it wasn’t already “High”.
+
+***
+
+## 13) GDPR/PII Guardrail During Trigger Updates
+
+**Story**  
+When certain fields are updated (e.g., `SSN__c`), ensure the running user has a permission (via Permission Set or Custom Permission). If not, `addError`.
+
+**Constraints & Tests**
+
+*   Before update on sensitive fields; bulk safe.
+*   Respect FLS/CRUD in service logic if moving out of trigger.
+
+**What’s being tested**  
+Security awareness, permission checks, least‑privilege.
+
+**Hints / Gotchas**
+
+*   Use `FeatureManagement.checkPermission()` or `Auth.SessionManagement` patterns / Custom Permissions in Apex.
+*   Don’t expose values in error messages.
+
+***
+
+## 14) Lead Assignment Recalc Without Thrashing
+
+**Story**  
+On Lead updates that affect assignment criteria, recompute owner using a ruleset (custom object). Avoid CPU spikes when only non‑criteria fields changed.
+
+**Constraints & Tests**
+
+*   Delta detection for specific criteria fields.
+*   Caching ruleset in a static map per transaction.
+
+**What’s being tested**  
+Delta scoping, caching, performance optimization.
+
+**Hints / Gotchas**
+
+*   Compute a hash/signature of criteria fields to skip unchanged leads.
+*   Keep queries narrow (fields you actually need).
+
+***
+
+## 15) Veto Cross‑Object Inconsistency
+
+**Story**  
+On `Order__c` insert, ensure all referenced `OrderItem__c` (coming from UI composite screen) belong to the same `Account__c` as the Order. If not, block the transaction.
+
+**Constraints & Tests**
+
+*   Before insert on Order\_\_c; bulk; minimal queries.
+*   Friendly errors listing offending items.
+
+**What’s being tested**  
+Transactional validation, set‑based cross checks, user experience.
+
+**Hints / Gotchas**
+
+*   Gather all AccountIds of items per new Order; if cardinality > 1, addError on the Order.
+
+***
+
+# How to Practice Efficiently (Quick Plan)
+
+1.  **Pick 5 scenarios** above and implement: **one trigger per object → handler → service**.
+2.  Ensure **bulk** paths (200 records) and **all contexts** (insert/update/delete/undelete) where relevant.
+3.  Add at least one **AggregateResult rollup** and one **Queueable callout** pattern.
+4.  Write tests that:
+    *   Use `SeeAllData=false`,
+    *   Assert data changes (not just coverage),
+    *   Use `Test.startTest/stopTest` for async,
+    *   Include negative and edge cases (empty aggregates → 0, null parents, mixed domains).
+5.  Verify logs to ensure **no SOQL/DML in loops** and acceptable **CPU time**.
+
+If you want, I can convert these into a **downloadable Word file** or a **Markdown (.md) checklist**, or I can build a **30‑minute mock interview** script with timed prompts and model answers.

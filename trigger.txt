@@ -1,0 +1,353 @@
+🔑 1. Trigger Fundamentals (Must‑Know)
+Before vs After triggers
+
+BEFORE → field calculation, validation, no extra DML
+AFTER → need record Ids, create/update related records
+
+    Never modify Trigger.new in AFTER
+    Understand all trigger contexts, including undelete
+    Clear awareness of Order of Execution and Flow conflicts
+
+✅ Interview signal: “I place calculations in before triggers to avoid conflicts with Flows.”
+
+🔑 2. Bulkification (NON‑NEGOTIABLE)
+        NO SOQL or DML inside loops
+        Always use:
+        Set<Id> to collect records
+        Map<Id, SObject> for fast access
+        Single SOQL + single DML per transaction
+          Handle 200+ records gracefully
+
+✅ Interview signal: “My trigger logic works for 1 record or 200 records without change.”
+
+🔑 3. Governor Limits Awareness
+You should fluently mention:
+    SOQL: 100
+    DML: 150
+    Records queried: 50,000
+    CPU Time: ~10 seconds
+    Heap size: 6 MB synchronous
+
+✅ Interview signal: “CPU time is usually the limiting factor in complex triggers.”
+
+🔑 4. Delta Checks (VERY IMPORTANT)
+        Compare Trigger.new vs Trigger.oldMap
+        Act only when fields actually change
+
+        Example idea (no need full code):
+        “I check if Status__c actually changed before executing logic”
+
+✅ Interview signal: “Delta checks reduce unnecessary processing and CPU usage.”
+
+🔑 5. Recursion Control
+    Know why recursion happens
+    Two valid approaches:
+
+    Static Boolean guard (use carefully)
+    Field‑change–based logic (preferred)
+
+✅ Interview signal: “I prefer delta‑based logic over static flags to avoid false skipping.”
+
+🔑 6. Trigger Design Pattern
+        Must mention:
+        Single trigger per object
+        Trigger → Handler → Service/Selector classes
+        Thin triggers, logic in classes
+
+✅ Interview signal: “My triggers only route execution; business logic lives in services.”
+
+🔑 7. AggregateResult Usage (Senior Indicator)
+Used for lookup rollups
+ Must support:
+        insert
+        update
+        delete
+        undelete
+
+
+Handle zero‑row aggregate case (default to 0)
+Proper type casting (Id, Integer, Decimal)
+
+✅ Interview signal: “Aggregate queries make rollups idempotent and scalable.”
+
+🔑 8. Async Processing from Triggers
+        Mandatory knowledge:
+        No synchronous callouts
+        Use:
+        Queueable (preferred)
+        @future(callout=true) (older)
+
+Pass only record Ids, re‑query inside async job
+
+✅ Interview signal: “Triggers enqueue async work; they never perform callouts directly.”
+
+🔑 9. Mixed DML Handling
+ User + non‑User DML → Mixed DML exception
+    Solution:
+    Separate transactions
+    Use Queueable/Future
+
+
+✅ Interview signal: “I split setup and non‑setup DML using async patterns.”
+
+🔑 10. Security & Sharing Understanding
+
+Triggers run in system mode
+Must enforce security manually:
+
+    CRUD checks
+    FLS checks
+    Security.stripInaccessible
+
+
+Use with sharing in service classes when needed
+
+✅ Interview signal: “System mode doesn’t mean ignoring security.”
+
+🔑 11. Testing Quality (Beyond 75%)
+        Strong expectations:
+
+        SeeAllData=false
+        Test:
+
+        insert / update / delete / undelete
+        bulk (200 records)
+        async logic (startTest/stopTest)
+
+
+Assertions on data changes
+
+✅ Interview signal: “Coverage doesn’t matter without assertions.”
+
+🔑 12. Real‑World Scenarios (MUST PRACTICE)
+Interview favorites:
+
+    Closed Won → create Project
+    Lookup rollups using AggregateResult
+    Prevent Owner change with open records
+    Contact email domain → Account mapping
+    Case delete/undelete rollups
+
+✅ Interview signal: “I’ve solved this in a production org before.”
+
+🔑 13. Anti‑Patterns (CALL THESE OUT)
+        Must say you avoid:
+        SOQL/DML in loops
+        Multiple triggers per object
+        Hard‑coded Ids
+        Heavy logic in trigger body
+        Ignoring undelete
+        Sync callouts
+        No recursion guard
+
+✅ Interview signal: “These patterns cause real production issues.”
+
+🔑 14. Senior‑Level Thinking (Differentiator)
+        Mention at least one:
+
+        Custom Metadata for configurability
+        Feature toggles
+        LDV strategies
+        CPU optimization
+        Async offloading
+        Post‑incident improvements
+
+✅ Interview signal: “I design triggers for scale and safe releases.”
+
+A) **AggregateResult casting pattern**
+
+```apex
+Map<Id, Decimal> sumByParent = new Map<Id, Decimal>();
+for (AggregateResult ar : [
+  SELECT Parent__c p, SUM(Amount__c) s
+  FROM Child__c
+  WHERE Parent__c IN :parentIds
+  GROUP BY Parent__c
+]) {
+  sumByParent.put((Id) ar.get('p'), (Decimal) ar.get('s'));
+}
+```
+
+B) **Delta check in bulk**
+
+```apex
+Set<Id> changed = new Set<Id>();
+for (SObject s : Trigger.new) {
+    SObject oldS = Trigger.oldMap.get(s.Id);
+    if ((String)s.get('Status__c') != (String)oldS.get('Status__c')) changed.add(s.Id);
+}
+```
+
+C) **Queueable callout trigger handoff**
+```apex
+public class NotifyQueueable implements Queueable, Database.AllowsCallouts {
+    Id recId;
+    public NotifyQueueable(Id id){ recId = id; }
+    public void execute(QueueableContext qc){
+        // Re-query fresh state, then Http callout
+    }
+}
+// From trigger:
+System.enqueueJob(new NotifyQueueable(someId));
+```
+
+D) **Static recursion guard (used sparingly)**
+
+```apex
+    public class TriggerRunOnce {
+        public static Boolean ran = false;
+    }
+
+    if (TriggerRunOnce.ran) return;
+    TriggerRunOnce.ran = true;
+
+(Prefer field‑delta checks over blanket flags.)
+
+trigger order of execution in salesforce
+
+| Step | Description                      |
+| ---- | -------------------------------- |
+| 1    | Load record                      |
+| 2    | System validation                |
+| 3    | Before triggers              |
+| 4    | Validation rules                 |
+| 5    | Duplicate rules                  |
+| 6    | After triggers               |
+| 7    | Assignment rules                 |
+| 8    | Auto-response                    |
+| 9    | Workflow rules + re-run triggers |
+| 10   | Escalation rules                 |
+| 11   | Roll-up summary                  |
+| 12   | Sharing recalculation            |
+| 13   | Commit to DB                     |
+| 14   | Post-commit async            |
+
+Bonus: Developer Tips for Order of Execution
+✔ Use before triggers for:
+    Field updates
+    Validation logic
+    Auto-number overrides
+
+✔ Use after triggers for:
+    Creating child records
+    Sending emails
+    Accessing generated IDs
+    Working with read-only fields
+
+✔ Avoid recursion
+   Control using static variables in handlers.
+✔  Don’t mix triggers and flows without caution
+They share the same transaction order.
+
+# 🚀 Salesforce Trigger Roadmap (Beginner → Expert)
+
+## 1️⃣ Foundations (Beginner Level)
+
+### ✔ Understand When Triggers Are Used
+
+   Triggers run before or after record operations.
+   Event types to master:
+       `before insert`, `before update`, `before delete`
+       `after insert`, `after update`, `after delete`, `after undelete`
+
+### ✔ Learn Trigger Context Variables
+
+   `Trigger.new`
+   `Trigger.old`
+   `Trigger.isInsert`, `Trigger.isUpdate`, etc.
+   `Trigger.newMap` / `Trigger.oldMap`
+   Why they matter: bulk operations + governor limits
+
+### ✔ Golden Rule (never break this!)
+
+❗ No SOQL or DML inside loops  
+Use lists, sets & maps.
+
+
+
+## 2️⃣ Core Skills (Intermediate Level)
+
+### ✔ Bulkification
+
+   Handle 1 record the same way you handle 200.
+   Collect IDs → Query once → Process everything at once.
+
+### ✔ Master Maps
+
+Example use cases:
+
+   Parent lookups
+   Prevent duplicate queries
+   Complex relationships (e.g., Opportunity → Account → User)
+
+### ✔ Trigger Pattern (Basic)
+
+Use just one trigger per object:
+
+```apex
+trigger AccountTrigger on Account (
+    before insert, before update,
+    after insert, after update
+) {
+    AccountTriggerHandler.run(Trigger.isBefore, Trigger.isInsert);
+}
+```
+
+
+
+## 3️⃣ Trigger Frameworks (Advanced Level)
+
+Choose one and commit to mastering it:
+
+### ✔ Apex Enterprise Patterns (SObject Domain Layer)
+
+Scalable for large orgs.
+
+### ✔ Kevin O’Hara’s Trigger Framework
+
+Popular, well‑structured, easy to maintain.
+
+### ✔ Your Own Minimal Framework
+
+   1 trigger → 1 handler class → dedicated methods
+   Easy to implement for small/medium orgs.
+
+
+
+## 4️⃣ Async Processing (Pro Level)
+
+Learn when and how to offload heavy operations:
+
+### ✔ Future Methods
+For non‑urgent operations (sending emails, callouts).
+### ✔ Queueable Apex
+   Chaining jobs
+   Processing medium-sized data loads
+### ✔ Batch Apex
+For processing thousands/millions of records.
+### ✔ Scheduled Apex
+For nightly/weekly background tasks.
+
+
+**Governor limits to remember**  
+- 100 SOQL queries/transaction  
+- 150 DML statements/transaction  
+- 50,000 records via SOQL total  
+- 10,000 rows per chunk in SOQL-for loops  
+- 20 callouts/transaction (async allowed)  
+- CPU time ~10,000 ms, Heap ~6 MB (sync)
+
+## 7️⃣ Testing (Critical Skill for Jobs)
+
+A real trigger developer writes:
+
+### ✔ Test Classes Covering:
+   Positive cases
+   Negative cases
+   Bulk tests
+   Single transaction tests
+   Data setup using @testSetup
+   Assert logic
+
+### ✔ 75% is MINIMUM—aim for 90%+
+

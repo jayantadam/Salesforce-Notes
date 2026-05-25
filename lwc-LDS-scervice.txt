@@ -1,0 +1,165 @@
+Here’s a **practical LDS + `refreshApex` example** suitable for senior-level interviews on the Salesforce platform.
+
+---
+
+# ✅ Scenario
+
+* Display Account Name & Phone using `@wire(getRecord)`
+* Update Phone using `updateRecord`
+* Refresh the wired data using `refreshApex`
+
+This ensures UI reflects the latest data without reloading the page.
+
+---
+
+# 🔹 accountRefresh.html
+
+```html
+<template>
+    <template if:true={account.data}>
+        <p><strong>Name:</strong> {name}</p>
+        <p><strong>Phone:</strong> {phone}</p>
+
+        <lightning-input 
+            label="New Phone"
+            value={newPhone}
+            onchange={handleChange}>
+        </lightning-input>
+
+        <lightning-button 
+            label="Update Phone"
+            onclick={handleUpdate}
+            variant="brand">
+        </lightning-button>
+    </template>
+
+    <template if:true={account.error}>
+        <p>Error loading record</p>
+    </template>
+</template>
+```
+
+---
+
+# 🔹 accountRefresh.js
+
+```javascript
+import { LightningElement, api, wire } from 'lwc';
+import { getRecord, getFieldValue, updateRecord } from 'lightning/uiRecordApi';
+import { refreshApex } from '@salesforce/apex';
+
+import NAME_FIELD from '@salesforce/schema/Account.Name';
+import PHONE_FIELD from '@salesforce/schema/Account.Phone';
+import ID_FIELD from '@salesforce/schema/Account.Id';
+
+const FIELDS = [NAME_FIELD, PHONE_FIELD];
+
+export default class AccountRefresh extends LightningElement {
+
+    @api recordId;
+    newPhone;
+
+    wiredAccountResult; // Store wire result for refresh
+
+    @wire(getRecord, { recordId: '$recordId', fields: FIELDS })
+    account(result) {
+        this.wiredAccountResult = result;
+    }
+
+    get name() {
+        return getFieldValue(this.wiredAccountResult.data, NAME_FIELD);
+    }
+
+    get phone() {
+        return getFieldValue(this.wiredAccountResult.data, PHONE_FIELD);
+    }
+
+    handleChange(event) {
+        this.newPhone = event.target.value;
+    }
+
+    handleUpdate() {
+        const fields = {};
+        fields[ID_FIELD.fieldApiName] = this.recordId;
+        fields[PHONE_FIELD.fieldApiName] = this.newPhone;
+
+        const recordInput = { fields };
+
+        updateRecord(recordInput)
+            .then(() => {
+                // Refresh the wired record
+                return refreshApex(this.wiredAccountResult);
+            })
+            .then(() => {
+                console.log('Record refreshed');
+            })
+            .catch(error => {
+                console.error(error);
+            });
+    }
+}
+```
+
+---
+
+# 🔎 Why `refreshApex` is Needed Here?
+
+Even though:
+
+* `updateRecord()` updates the record
+* LDS has caching
+
+Sometimes:
+
+* You need explicit refresh after imperative updates.
+* Especially when mixing wired Apex and imperative calls.
+* Or when refreshing aggregated/custom Apex data.
+
+---
+
+# 🧠 Senior-Level Interview Explanation
+
+Important points to mention:
+
+* `refreshApex()` works only on wired results.
+* You must store the entire wire result object.
+* It re-invokes the wire adapter and updates cache.
+* It returns a Promise.
+* Not required if LDS auto-sync handles it (but safe for deterministic refresh).
+
+---
+
+# ⚠ Common Mistake
+
+Incorrect:
+
+```javascript
+refreshApex(this.account.data);
+```
+
+Correct:
+
+```javascript
+refreshApex(this.wiredAccountResult);
+```
+
+You must pass the wired result, not just data.
+
+---
+
+# 🔥 When You Definitely Need refreshApex
+
+* After imperative Apex DML
+* After updateRecord in certain custom flows
+* After deleting records
+* After batch operations
+* When refreshing list views or aggregated data
+
+---
+
+If you’d like, I can now show:
+
+* `refreshApex` with wired Apex method
+* `refreshApex` in datatable after delete
+* Comparison: `refreshApex` vs `getRecordNotifyChange()`
+* Real enterprise scenario using multiple wired services
