@@ -99,44 +99,44 @@ Below are **simple Salesforce steps or small code examples** for each common int
 
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # 3. Batch Data Integration (Data Loader)
-### Example
-Import **10,000 Contacts from Excel**.
+        ### Example
+        Import **10,000 Contacts from Excel**.
 
-### Steps
+        ### Steps
 
-1. Export data as **CSV file**.
-2. Open **Data Loader**.
-3. Click **Insert**.
-4. Select **Contact object**.
-5. Upload CSV.
-6. Map fields.
-7. Click **Finish**.
+        1. Export data as **CSV file**.
+        2. Open **Data Loader**.
+        3. Click **Insert**.
+        4. Select **Contact object**.
+        5. Upload CSV.
+        6. Map fields.
+        7. Click **Finish**.
 
-Records get inserted in bulk.
+        Records get inserted in bulk.
 
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # 4. Batch Apex Integration
-### Example
-Update Account data from external system every night.
-### Code
-```apex
-global class AccountBatch implements Database.Batchable<SObject>{
+        ### Example
+        Update Account data from external system every night.
+        ### Code
+        ```apex
+        global class AccountBatch implements Database.Batchable<SObject>{
 
-    global Database.QueryLocator start(Database.BatchableContext bc){
-        return Database.getQueryLocator(
-            'SELECT Id, Name FROM Account'
-        );
-    }
+            global Database.QueryLocator start(Database.BatchableContext bc){
+                return Database.getQueryLocator(
+                    'SELECT Id, Name FROM Account'
+                );
+            }
 
-    global void execute(Database.BatchableContext bc, List<Account> scope){
-        for(Account acc : scope){
-            acc.Name = acc.Name + ' Updated';
+            global void execute(Database.BatchableContext bc, List<Account> scope){
+                for(Account acc : scope){
+                    acc.Name = acc.Name + ' Updated';
+                }
+                update scope;
+            }
+
+            global void finish(Database.BatchableContext bc){}
         }
-        update scope;
-    }
-
-    global void finish(Database.BatchableContext bc){}
-}
 
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 5. What is an Outbound Message?

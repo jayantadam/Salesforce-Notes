@@ -1,0 +1,429 @@
+🔹 1. public — Default choice
+       Use public when your batch class is used only inside the same org.
+
+🔹 2. global — Required for external access
+      Use global when your batch class needs to be accessed outside your org/package.
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+IMP contains()
+  List<String> names = new List<String>{'Adam', 'John', 'Mike'};
+ List<String> listVals = new List<String>(names);
+        names.add('peter')
+        // add at index
+        names.add(1, 'X'); // 
+        listVals.get(0) // adam
+        names.contains('John'); // true
+        names.size() // 
+        names.isEmpty();
+        names.remove('X'); // remove by value
+        names.sort();
+
+Map<Id, Decimal> accMap = new Map<Id, Decimal>();
+    accMap.put('001xx000000001', 5000); // ✅ put (key, value)
+    accMap.put('001xx000000002', 6000); // ✅ put (key, value)
+    accMap.get('001xx000003DHP0'); // ✅ get value
+    accMap.containsKey('001xx000003DHP0'); // ✅ true
+    accmap.keyset() // {001xx000000001, 001xx000000002}
+        // ✅ size
+        System.debug('Size: ' + accMap.size());
+        // ✅ isEmpty
+        System.debug('Is Empty: ' + accMap.isEmpty());
+        // ✅ remove
+        accMap.remove('001xx000003DHP0');
+
+Set<Id> accId = new Set<Id>();
+        accId.add('001xx000003DHP0'); // ✅ add single Id
+        accId.contains('001xx000003DHP0'); // true
+        System.debug('Size: ' + accId.size());
+        System.debug('Is Empty: ' + accId.isEmpty());
+        accId.remove('001xx000003DHP0');
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+    1. Using Wrong Case
+        Database.getQueryLocator('SELECT Id FROM Account') // Correct
+    2. Incorrect Counter Logic
+            for(Account a: scope){
+            }
+            count += scope.size();  
+    4. Duplicate Updates (Data Corruption Risk)
+        if (!ac.Name.contains('Active')) {
+            ac.Name += ' Active';
+        }
+Invoked from Another Apex (Chaining)
+   You can call one batch from another:
+        public void finish(Database.BatchableContext bc) {
+            Database.executeBatch(new AnotherBatch(), 200);
+        }
+
+LAST_N_YEARS: 1
+LAST_N_DAYS: 30
+LAST_N_WEEKS: 4
+LAST_N_MONTHS: 6
+LAST_N_QUARTERS: 2
+
+N_DAYS_AGO
+N_DAYS_BEFORE
+N_DAYS_AFTER
+N_DAYS_FROM_NOW
+
+System.today().addYears(-5) 
+System.today().addDayS(-5)   - it will not consider todays year/day/month
+System.today().addMonths(-5)
+
+
+IMP MOST- 🔹    1.WHERE CreatedDate = N_DAYS_AGO:30 (Exactly 30 days ago) - April 27 (ONLY THAT DAY)
+                 2.WHERE CreatedDate = LAST_N_DAYS:30 (Last 30 days) - TODAY TO NUMBER OF DAYS 
+                    example - If today = May 27
+                    LAST_N_DAYS:30 → May 27 to April 28
+                    = → anything from April 28 to May 27 (including both days)
+                3.WHERE CreatedDate < LAST_N_DAYS:30 (Older than 30 days) -  PAST RECORDS
+                        example - If today = May 27
+                            LAST_N_DAYS:30 → May 27 to April 28
+                            < → anything before April 28
+                            
+                4.WHERE CreatedDate < N_DAYS_AGO:30 (More than 30 days ago) - Anything before April 27
+
+                    | Feature          | `< LAST_N_DAYS:30`  | `< N_DAYS_AGO:30`   |
+                    | ---------------- | ------------------- | ------------------- |
+                    | Cutoff date      | April 28            | April 27            |
+                    | Records included | Older than 30 days  | Older than 30 days  |
+                    | Edge difference  | ✅ excludes April 28 | ✅ excludes April 27 |
+                    | Difference       | ✅ 1-day shift       |                     |
+
+
+
+N_DAYS_AGO - while N_DAYS_AGO:7 returns records created exactly 7 days ago.
+N_DAYS_BEFORE:7 returns records that were created more than 7 days ago.
+N_DAYS_AFTER:7 returns records that will be created more than 7 days from now.
+N_DAYS_FROM_NOW:7 returns records that will be created in the next 7 days.
+
+IMP
+CreatedDate - Select Id, Name from Account where CreatedDate = LAST_N_DAYS:30
+CreatedById
+
+LastModifiedDate - Select Id, Name from Account where LastModifiedDate = LAST_N_DAYS:30
+LastModifiedById
+
+CloseDate - opportunity
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+1.Instead of stopping the whole batch when one record fails, we allow:
+
+✅ Successful records → update
+❌ Failed records → log errors
+
+                public class AccountBatchPartial implements Database.Batchable<SObject>, Database.Stateful {
+
+                    public Integer successCount = 0;
+                    public Integer failureCount = 0;
+
+                    public Database.QueryLocator start(Database.BatchableContext bc) {
+                        return Database.getQueryLocator([
+                            SELECT Id, Name FROM Account
+                        ]);
+                    }
+
+                    public void execute(Database.BatchableContext bc, List<Account> scope) {
+                        // Modify records
+                        for (Account acc : scope) {
+                            acc.Name = acc.Name + ' Active';
+                        }
+
+                        // ✅ Partial update (false = don't stop on error)
+                        Database.SaveResult[] results = Database.update(scope, false);
+
+                        // ✅ Process results
+                        for (Integer i = 0; i < results.size(); i++) {
+                            if (results[i].isSuccess()) {
+                                successCount++;
+                            } else {
+                                failureCount++;
+
+                                // Log error details
+                                for (Database.Error err : results[i].getErrors()) {
+                                    System.debug('Error on record Id: ' + scope[i].Id);
+                                    System.debug('Error message: ' + err.getMessage());
+                                }
+                            }
+                        }
+                    }
+
+                        public void finish(Database.BatchableContext bc) {
+                            System.debug('✅ Success Count: ' + successCount);
+                            System.debug('❌ Failure Count: ' + failureCount);
+                        }
+                    }
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+1. Data Aggregation
+    ❓ Scenario:
+    Update Account with total Opportunity Amount.
+
+global class AggregateBatch implements Database.Batchable<SObject> {
+
+    global Database.QueryLocator start(Database.BatchableContext bc) {
+        return Database.getQueryLocator('SELECT Id, AccountId, Amount FROM Opportunity WHERE AccountId != null');
+    }
+
+    global void execute(Database.BatchableContext bc, List<Opportunity> scope) {
+        Map<Id, Decimal> accTotals = new Map<Id, Decimal>();
+
+        for(Opportunity opp : scope) {
+             Decimal existing = accTotals.containsKey(opp.AccountId) ? accTotals.get(opp.AccountId) : 0;
+            accTotals.put(opp.AccountId, existing + opp.Amount);
+        }
+
+        List<Account> accUpdates = new List<Account>();
+        for(Id accId : accTotals.keySet()) {
+            accUpdates.add(new Account(Id = accId, Total_Amount__c = accTotals.get(accId)));
+        }
+
+        update accUpdates;
+    }
+
+    global void finish(Database.BatchableContext bc) {}
+}
+
+                                OR
+global class UpdateAccountOpportunityAmountBatch implements Database.Batchable<SObject> {
+
+    // Start method
+    global Database.QueryLocator start(Database.BatchableContext bc) {
+        return Database.getQueryLocator([
+            SELECT Id FROM Account
+        ]);
+    }
+
+    // Execute method
+    global void execute(Database.BatchableContext bc, List<Account> scope) {
+
+        Set<Id> accountIds = new Set<Id>();
+
+        for (Account acc : scope) {
+            accountIds.add(acc.Id);
+        }
+
+        // Aggregate Opportunity Amounts
+        Map<Id, Decimal> accountToAmount = new Map<Id, Decimal>();
+
+        for (AggregateResult ar : [
+            SELECT AccountId accId, SUM(Amount) totalAmt
+            FROM Opportunity
+            WHERE AccountId IN :accountIds
+            AND IsClosed = false
+            GROUP BY AccountId
+        ]) {
+            accountToAmount.put(
+                (Id) ar.get('accId'),
+                (Decimal) ar.get('totalAmt')
+            );
+        }
+
+        // Update Accounts
+        List<Account> accountsToUpdate = new List<Account>();
+
+        for (Account acc : scope) {
+            Decimal total = accountToAmount.containsKey(acc.Id)
+                ? accountToAmount.get(acc.Id)
+                : 0;
+
+            acc.Total_Opportunity_Amount__c = total; // Custom field
+            accountsToUpdate.add(acc);
+        }
+
+        if (!accountsToUpdate.isEmpty()) {
+            update accountsToUpdate;
+        }
+    }
+
+    // Finish method
+    global void finish(Database.BatchableContext bc) {
+        System.debug('Batch job completed');
+    }
+}
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Scenario:
+Update Contacts with Account Industry
+global class UpdateContactIndustryBatch implements Database.Batchable<SObject> {
+
+    // Start method: Query Contacts with AccountId
+    global Database.QueryLocator start(Database.BatchableContext bc) {
+        return Database.getQueryLocator([
+            SELECT Id, AccountId, Account_Industry__c
+            FROM Contact
+            WHERE AccountId != null
+        ]);
+    }
+
+    // Execute method: Process batch
+    global void execute(Database.BatchableContext bc, List<Contact> scope) {
+
+        Set<Id> accIds = new Set<Id>();
+        for (Contact con : scope) {
+            if (con.AccountId != null) {
+                accIds.add(con.AccountId);
+            }
+        }
+
+        Map<Id, Account> accMap = new Map<Id, Account>(
+            [SELECT Id, Industry FROM Account WHERE Id IN :accIds]
+        );
+
+        List<Contact> contactsToUpdate = new List<Contact>();
+
+        for (Contact con : scope) {
+            if (accMap.containsKey(con.AccountId)) {
+                String industry = accMap.get(con.AccountId).Industry;
+
+                // Only update if value changed (best practice)
+                if (con.Account_Industry__c != industry) {
+                    con.Account_Industry__c = industry;
+                    contactsToUpdate.add(con);
+                }
+            }
+        }
+
+        if (!contactsToUpdate.isEmpty()) {
+            update contactsToUpdate;
+        }
+    }
+
+    // Finish method (optional)
+    global void finish(Database.BatchableContext bc) {
+        System.debug('Batch processing completed.');
+    }
+}
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+2.  Case Escalation
+❓ Scenario:
+Escalate Cases open more than 7 days.
+global class CaseEscalationBatch implements Database.Batchable<SObject> {
+
+    global Database.QueryLocator start(Database.BatchableContext bc) {
+        return Database.getQueryLocator(
+IMP            'SELECT Id, Status FROM Case WHERE Status != \'Closed\' AND CreatedDate < LAST_N_DAYS:7'
+        );
+    }
+
+    global void execute(Database.BatchableContext bc, List<Case> scope) {
+        for(Case c : scope) {
+            c.Status = 'Escalated';
+        }
+        update scope;
+    }
+
+    global void finish(Database.BatchableContext bc) {}
+}
+``
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+1. Incremental Data Processing (VERY COMMON)
+    ❓ Scenario: Process only new or modified Accounts daily, not all records.
+✅ Expected Approach:
+        Store last execution time
+        Filter using LastModifiedDate
+
+global class IncrementalBatch implements Database.Batchable<SObject> {
+
+    global Database.QueryLocator start(Database.BatchableContext bc) {
+        return Database.getQueryLocator(
+            'SELECT Id, Name FROM Account WHERE LastModifiedDate = LAST_N_DAYS:1'
+        );
+    }
+
+    global void execute(Database.BatchableContext bc, List<Account> scope) {
+        for(Account acc : scope) {
+            acc.Name = acc.Name + ' Updated';
+        }
+        update scope;
+    }
+
+    global void finish(Database.BatchableContext bc) {}
+}
+Database.executeBatch(new IncrementalBatch(), 200);
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+2. Retry Failed Records (Deloitte Favorite)
+    ❓ Scenario:
+    Some records fail. Reprocess only failed ones.
+    ✅ Approach:
+    Use partial update
+    Log failures in custom object
+               global class RetryBatch implements Database.Batchable<SObject> {
+                global Database.QueryLocator start(Database.BatchableContext bc) {
+                    return Database.getQueryLocator('SELECT Id FROM Account');
+                }
+
+                global void execute(Database.BatchableContext bc, List<Account> scope) {
+
+                    Database.SaveResult[] results = Database.update(scope, false);
+
+                    List<Failed_Record__c> errors = new List<Failed_Record__c>();
+
+                    for(Integer i=0; i<results.size(); i++) {
+                        if(!results[i].isSuccess()) {
+                            errors.add(new Failed_Record__c(
+                                Record_Id__c = scope[i].Id,
+                                Error_Message__c = results[i].getErrors()[0].getMessage()
+                            ));
+                        }
+                    }
+
+                    insert errors;
+                }
+
+                global void finish(Database.BatchableContext bc) {
+                    // Optionally trigger retry batch
+                }
+            }
+            Database.executeBatch(new RetryBatch(), 200);
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+4. Integration Batch with Callouts
+❓ Scenario:
+Send 1 million Account records to external API.
+    ✅ Approach:
+    Use Database.AllowsCallouts
+    Limit API calls per batch
+        global class IntegrationBatch implements Database.Batchable<SObject>, Database.AllowsCallouts {
+            global Database.QueryLocator start(Database.BatchableContext bc) {
+                return Database.getQueryLocator('SELECT Id, Name FROM Account');
+            }
+            global void execute(Database.BatchableContext bc, List<Account> scope) {
+                Http http = new Http();
+                for(Account acc : scope) {
+                    HttpRequest req = new HttpRequest();
+                    req.setEndpoint('https://api.example.com/send');
+                    req.setMethod('POST');
+                    req.setBody(acc.Name);
+                    http.send(req);
+                }
+            }
+
+            global void finish(Database.BatchableContext bc) {}
+    }
+    Database.executeBatch(new IntegrationBatch(), 100); // Process 100 records per batch to avoid hitting API limits
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+5. Idempotent Batch (VERY IMPORTANT)
+❓ Scenario:
+Ensure batch does not process duplicate data if run multiple times.
+    ✅ Approach:
+    Use a unique identifier (e.g., LastModifiedDate) to filter records
+    Store batch run history in custom object
+        global class IdempotentBatch implements Database.Batchable<SObject> {
+            global Database.QueryLocator start(Database.BatchableContext bc) {
+                // Get last run time from custom object
+                DateTime lastRun = Batch_Run_History__c.getLastRunTime('IdempotentBatch');
+                return Database.getQueryLocator(
+                    'SELECT Id, Name FROM Account WHERE LastModifiedDate > :lastRun'
+                );
+            }
+
+            global void execute(Database.BatchableContext bc, List<Account> scope) {
+                for(Account acc : scope) {
+                    acc.Name = acc.Name + ' Processed';
+                }
+                update scope;
+            }
+
+            global void finish(Database.BatchableContext bc) {
+                // Update last run time in custom object
+                Batch_Run_History__c.updateLastRunTime('IdempotentBatch', System.now());
+            }
+    }
+    -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    🔹 2. Delete old records (cleanup job)
+         SELECT Id FROM Opportunity WHERE CloseDate < : System.today().addYears(-5)

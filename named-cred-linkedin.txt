@@ -1,0 +1,85 @@
+Named credential for LinkedIn API access.
+
+youtube link - https://www.youtube.com/watch?v=77bcHxKbVm0&t=610s
+
+1. Create new LinkedIn page 
+  - Go to https://www.linkedin.com/ and sign in with your LinkedIn account.
+  - Click on "Work" in the top right corner and select "Create a Company Page".
+  - Choose the appropriate category for your company and fill in the required information such as company name, website URL, company size, and industry.
+  - Upload a logo and cover image for your company page.
+
+2. Navigate to developer.linkedin.com and create a new application to obtain your client ID and client secret.
+   step-by-step instructions:
+   - Go to https://developer.linkedin.com/ and sign in with your LinkedIn account.
+   - Click on "My Apps" in the top right corner.
+   - Click on "Create Application".
+   - Fill in the required fields such as App Name, Company, and Application Description, linked in page URL, and logo.
+   - Make sure to set the appropriate permissions for your application based on the LinkedIn API endpoints you intend to use.
+   - Navigate to the "Products" tab and add the necessary products/APIS (e.g., Sign In with LinkedIn, Share on LinkedIn, etc.) to your application.  
+   - Navigate to settings and verify your page and click on generate url and copy the generated url in browser and verify that you are able to access the LinkedIn API 
+     endpoints with the generated URL.
+   - After creating the application, go to the "Auth" tab to find your Client ID and Client Secret. You will need these credentials to set up the named credential 
+     in Salesforce.
+    
+3. In Salesforce, go to Setup and search for "Auth Providers" in the Quick Find box. Click on "Auth Providers" and then click "New".
+   - Select "LinkedIn" as the provider type.
+   - Fill in the required fields such as Name, URL Suffix, Consumer Key (Client ID), and Consumer Secret (Client Secret) obtained from the LinkedIn application.
+   - Set the Authorize Endpoint URL to "https://www.linkedin.com/oauth/v2/authorization" and the Token Endpoint URL to "https://www.linkedin.com/oauth/v2/accessToken".
+   - Go to the linked application's authentication settings and take the authentication scope and set it in the auth provider scope 
+     "r_emailaddress r_liteprofile w_member_social". (or any other scopes you need based on the LinkedIn API endpoints you intend to use).
+   - Save the Auth Provider.
+   - you will get the callback URL from the Auth Provider detail page, copy that URL and add it to the LinkedIn application Auth -> authorized redirect URLs -> 
+     add callback URL. example url: https://login.salesforce.com/services/authcallback/00DXXXXXXXXXXXX/LinkedIn
+
+4. Next, go to "Named Credentials" in Setup 
+   - Click "New External Credential".
+   - Fill in the required fields such as Label, Name, and select the Authentication Provider you created in the previous step.
+   - Authentication protocol should be set to "OAuth 2.0".
+   - Authentication flow type should be set to "Browser Flow".
+   - Save the Named Credential. -> LinkedIn API access credential.
+   - Click on "Create Principal" and Fill Name, select identity type as "Named Principal" and save it.
+
+5. Create Named Credential for LinkedIn API access.
+   - Go to "Named Credentials" in Setup and click "New Named Credential".
+   - Fill in the required fields such as Label, Name, Enabled for callouts.
+   - Set the URL to "https://api.linkedin.com/v2/" (or the appropriate LinkedIn API endpoint you intend to use).
+   - External Credential should be set to the "LinkedIn API access credential" you created in the previous step.
+   - Save the Named Credential.   
+   
+6. Go to External Credential there you can see named credential created with the LinkedIn API access and you can also see the status of the credential whether
+  it is active or not.
+  - also you can go to principal click on action and click on "Authenticate" to authenticate the named credential with LinkedIn and ensure that it is working correctly.
+
+7. create permission set and assign it to the user who will be using the LinkedIn API access.
+   - Go to "Permission Sets" in Setup and click "New".
+   - Fill in the required fields such as Label and Name.
+   - Save the Permission Set.
+   - Click on "External credential principal access" and then click "Edit".
+   - Select the External x principal you created for LinkedIn API access and add it then save the changes.
+   - Assign the Permission Set to the user who will be using the LinkedIn API access.
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+https://www.youtube.com/watch?v=VGLp6g5VRBo
+
+
+2nd example of Named Credential with Basic Authentication:
+    Url - http://sf.mini-hacks.herokuapp.com
+    Username - admin
+    Password - admin
+
+    create animal object with id, name, type
+
+ Go to "Named Credentials" in Setup and click "External Credential".
+    - Click "New External Credential".
+    - Fill in the required fields such as Label, Name and select "Custom" for Authentication Protocol.
+    - Save the External Credential. -> Animal API basic authentication.
+    - Click on "Create Principal" and Fill Name, select identity type as "Named Principal", we can't change the identity type.
+    - Add Authentication Parameters:
+      - Key: username, Value: admin
+      - Key: password, Value: admin   
+
+
+   - Fill in the required fields such as Label, Name, Enabled for callouts.
+   - Set the URL to "http://sf.mini-hacks.herokuapp.com/api/animals" (or the appropriate API endpoint you intend to use).
+   - Authentication protocol should be set to "Basic Authentication".
+   - Fill in the username and password fields with the provided credentials.
+   - Save the Named Credential.   

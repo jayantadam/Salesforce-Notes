@@ -1,0 +1,377 @@
+1. Does @future support a retry mechanism?
+    No, the @future method in Salesforce does NOT support a retry mechanism by default.
+
+2. 🔁 ✅ How Retry Works in Queueable Apex
+public class RetryableQueueable implements Queueable {
+    private Integer retryCount;
+
+    public RetryableQueueable(Integer retryCount) {
+        this.retryCount = retryCount;
+    }
+
+    public void execute(QueueableContext context) {
+        try {
+            // Your business logic here
+            System.debug('Processing job...');
+            // Simulate failure
+            if (Math.random() > 0.5) {
+                throw new Exception('Random failure');
+            }
+
+        } catch (Exception e) {
+            System.debug('Error: ' + e.getMessage());
+            // Retry logic
+            if (retryCount < 3) {
+                System.enqueueJob(new RetryableQueueable(retryCount + 1));
+            } else {
+                System.debug('Max retries reached');
+            }
+        }
+    }
+}    
+
+what is login ip range
+ Login IP Range in Salesforce is a security feature that restricts users so they can log in only from specified IP address ranges.
+
+- 📍 Path:
+Setup → Profiles → Select Profile → Login IP Ranges
+Start IP: 192.168.1.1
+End IP:   192.168.1.255
+
+login ip hourse
+multifacotor auth 
+
+Login Hours - Login Hours are a security feature in Salesforce that control when (time of day) users are allowed to log in.
+For each day:
+    Set Start Time
+    Set End Time
+Example:
+Monday: 9:00 AM – 6:00 PM
+
+how do you habdle timeout in callout
+    Http http = new Http();
+                HttpRequest req = new HttpRequest();
+                req.setEndpoint('https://api.example.com/data');
+                req.setMethod('GET');
+                req.setTimeout(60000);
+
+“Can I make external HTTP callouts without writing Apex code?”
+    Yes, you can make external HTTP callouts without writing Apex code by using Salesforce's declarative tools such as Flow or Process Builder. These tools allow you
+    to create automated processes that can interact with external services through HTTP callouts, enabling you to integrate with third-party APIs without needing to 
+    write custom code.
+===> Flow + HTTP Callout -> In Flow, you can use the "HTTP Callout" action to configure the endpoint, method, headers, and body for your callout. 
+      
+
+✅ 1. Username–Password Authentication
+🔹 What it is The simplest method:
+    User logs in with:
+    Username
+    Password
+    Security Token (for API access)
+🔹 How it works
+Client sends credentials to Salesforce
+Salesforce verifies user
+Returns session ID (used as access token)
+example Apex:
+    public class AuthExample {
+        public void authenticate() {
+            String username = 'your_username';
+            String password = 'your_password';
+            String securityToken = 'your_security_token';
+
+            Http http = new Http();
+            HttpRequest req = new HttpRequest();
+            req.setEndpoint('https://login.salesforce.com/services/oauth2/token');
+            req.setMethod('POST');
+            req.setHeader('Content-Type', 'application/x-www-form-urlencoded');
+            req.setBody('grant_type=password&client_id=your_client_id&client_secret=your_client_secret&username=' + username + '&password=' + password + securityToken);
+
+            HttpResponse res = http.send(req);
+            if (res.getStatusCode() == 200) {
+                // Parse response to get access token
+                System.debug('Authentication successful: ' + res.getBody());
+            } else {
+                System.debug('Authentication failed: ' + res.getStatusCode() + ' - ' + res.getBody());
+            }
+        }
+    }
+                POST https://login.salesforce.com/services/oauth2/token
+                grant_type=password
+                client_id=CLIENT_ID
+                client_secret=CLIENT_SECRET
+                username=user@example.com
+                password=password+securityToken
+2. OAuth 2.0 Authentication (Most Important 🔥)
+
+3. How to give object permission in Apex code
+    public class AccountService {
+        public void createAccount() {
+            if (Schema.sObjectType.Account.isCreateable()) {
+                Account acc = new Account(Name = 'New Account');
+                insert acc;
+            } else {
+                System.debug('User does not have permission to create accounts.');
+            }
+        }
+    }
+
+4. If you don’t have object permission and record access and try to execute a SOQL query in Apex, the behavior depends on how the code is written.
+    DML operations will succeed in all three types of classes (with sharing, without sharing, and inherited sharing) even if the user does not have object permissions,
+    because Apex runs in system context by default and does not enforce CRUD permissions unless explicitly checked.
+Types of User Context in Apex
+        1. User Mode (Respect Sharing Rules)
+        ✅ Applies in:
+            Standard controllers
+            Code declared with with sharing
+            SOQL queries using WITH USER_MODE (newer feature)
+
+            public with sharing class AccountService {
+            public static List<Account> getAccounts() {
+                return [SELECT Id, Name FROM Account];
+                }
+            }
+        ✔ Behavior:
+                Respects organization-wide defaults (OWD)
+                Honors role hierarchy and sharing rules
+                Enforces object-level and field-level security (if explicitly checked)
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+        2. System Mode (Ignore Sharing Rules)
+        ✅ Applies in:
+                Triggers
+                Classes declared without sharing
+                Anonymous Apex
+                Batch Apex, Queueable, Future methods (mostly system mode)
+
+        public without sharing class AdminService {
+            public static List<Account> getAllAccounts() {
+                return [SELECT Id, Name FROM Account];
+            }
+        }
+        ✔ Behavior:
+            Ignores sharing rules
+            Can access all records
+            Does NOT automatically enforce FLS/CRUD (you must check manually)
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+        3. Mixed Context
+        Sometimes execution involves both modes.
+        🧠 Example:
+        A with sharing class calls a without sharing class
+        → The called class runs without sharing
+
+✅ What happens in Async Apex (Future, Batch, Queueable, Scheduled)?
+✔ Yes, async Apex can perform DML even without user object/field access because it runs in system context, but developers must manually enforce CRUD and FLS to ensure 
+   security.
+1. ❗ CRUD & FLS are NOT enforced automatically
+    Async Apex ignores:
+    Object permissions (CRUD)
+    Field-level security (FLS)
+
+2. ✅ Sharing rules behavior
+        Async Apex runs in system mode by default
+        But if your class is with sharing, record-level access IS respected
+            public with sharing class MyFutureClass {
+                @future
+                public static void doWork() {
+                    // respects record-level sharing
+                }
+            }
+✔ Check Object Permission
+        if (Schema.sObjectType.Account.isUpdateable()) {
+            update acc;
+        }
+✔ Check Field Permission
+        if (Schema.sObjectType.Account.fields.Name.isUpdateable()) {
+            acc.Name = 'New';
+        }
+✔ Use stripInaccessible (Recommended)
+        SObjectAccessDecision decision = Security.stripInaccessible(
+            AccessType.UPDATABLE,
+            new List<Account>{acc}
+        );
+    update decision.getRecords();
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+A trigger updates Opportunity whenever Account changes. Suddenly CPU timeout starts happening in Production only for bulk uploads. How will you debug and fix it?
+check in the trigger for common performance issues:
+1. ❌ SOQL / DML inside loop
+2. ❌ Recursive Updates (MOST COMMON)
+3. ❌ Large Data Volume Processing
+4. ❌ Unoptimized Logic
+
+solution
+✅ 3: Best Practice Architecture
+        ✔ Use:
+        Trigger → Handler class
+            One trigger per object
+            No logic inside trigger
+            No DML or SOQL in trigger body
+
+✅ 1. Prevent Recursion (CRITICAL)
+    public class TriggerHelper {
+        public static Boolean isRunning = false;
+    }
+
+✅ 2. Bulkify the Code
+    ❌ Bad:
+    for (Account acc : Trigger.new) {
+        List<Opportunity> opps = [SELECT Id FROM Opportunity WHERE AccountId = :acc.Id];
+    }
+    ✅ Good:
+        Set<Id> accountIds = new Set<Id>();
+        for (Account acc : Trigger.new) {
+            accountIds.add(acc.Id);
+        }
+    List<Opportunity> opps = [SELECT Id FROM Opportunity WHERE AccountId IN :accountIds];    
+✅ 4. Move Heavy Logic to Async (if needed)
+         System.enqueueJob(new OpportunityUpdateJob(accountIds));
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+You have multiple triggers on Case object maintained by different teams. Data inconsistency is happening randomly. How would you redesign the trigger architecture?
+🔥 Root Cause
+    Salesforce does NOT guarantee trigger execution order when multiple triggers exist on the same object.
+👉 Result:
+    One trigger updates field A
+    Another trigger overwrites it
+    Sometimes logic runs in different sequences
+    Causes unpredictable results
+✅ Goal
+    ✔ Single source of truth
+    ✔ Controlled execution order
+    ✔ Maintainability across teams
+    ✔ No duplicate / conflicting logic
+    
+🔹 1. One Trigger Per Object (MANDATORY)
+            ❌ Current (bad design) CaseTrigger1, CaseTrigger2, CaseTrigger3
+            Target: Single CaseTrigger that delegates to handler classes
+                    trigger CaseTrigger on Case (
+                    before insert, before update,
+                    after insert, after update
+                ) {
+                    CaseTriggerHandler.run(
+                        Trigger.isInsert,
+                        Trigger.isUpdate,
+                        Trigger.isBefore,
+                        Trigger.isAfter,
+                        Trigger.new,
+                        Trigger.oldMap
+                    );
+                }
+🔹 2. Handler Class (Fixed & Structured)
+            public class CaseTriggerHandler {
+                private static Boolean isRunning = false;
+                public static void run(
+                    Boolean isInsert,
+                    Boolean isUpdate,
+                    Boolean isBefore,
+                    Boolean isAfter,
+                    List<Case> newList,
+                    Map<Id, Case> oldMap
+                ) {
+                    // ✅ Recursion guard
+                    if (isRunning) return;
+                    isRunning = true;
+                    if (isBefore) {
+                        if (isInsert) {
+                            beforeInsert(newList);
+                        }
+                        if (isUpdate) {
+                            beforeUpdate(newList, oldMap);
+                        }
+                    }
+                    if (isAfter) {
+                        if (isInsert) {
+                            afterInsert(newList);
+                        }
+                        if (isUpdate) {
+                            afterUpdate(newList, oldMap);
+                        }
+                    }
+                    isRunning = false;
+                }
+                private static void beforeInsert(List<Case> newList) {
+                    CaseService1.beforeInsert(newList);
+                    CaseService2.beforeInsert(newList);
+                }
+
+                private static void beforeUpdate(List<Case> newList, Map<Id, Case> oldMap) {
+                    CaseService1.beforeUpdate(newList, oldMap);
+                    CaseService2.beforeUpdate(newList, oldMap);
+                }
+
+                private static void afterInsert(List<Case> newList) {
+                    CaseService1.afterInsert(newList);
+                    CaseService2.afterInsert(newList);
+                }
+
+                private static void afterUpdate(List<Case> newList, Map<Id, Case> oldMap) {
+                    CaseService1.afterUpdate(newList, oldMap);
+                    CaseService2.afterUpdate(newList, oldMap);
+                }
+
+🔹 3. Service Class 1 (Example Team 1 Logic)
+       
+            public class CaseService1 {
+                public static void beforeInsert(List<Case> newList) {
+                    for (Case c : newList) {
+                        if (String.isBlank(c.Subject)) {
+                            c.Subject = 'Default Subject';
+                        }
+                    }
+                }
+
+            public static void beforeUpdate(List<Case> newList, Map<Id, Case> oldMap) {
+                    for (Case c : newList) {
+                        Case oldCase = oldMap.get(c.Id);
+
+                        if (c.Status != oldCase.Status) {
+                            // Example logic
+                        }
+                    }
+            }
+
+            public static void afterInsert(List<Case> newList) {
+                // Example: logging or async call
+            }
+
+            public static void afterUpdate(List<Case> newList, Map<Id, Case> oldMap) {
+                // Example: post-update logic
+            }
+        }
+        ``
+        }       
+        4. Service Class 2 (Example Team 2 Logic)
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------           
+A batch job updates 5 million records daily. Business users complain about record locks. What optimization strategies will you implement?       
+Record locks occur due to concurrent updates on the same records or parent relationships. I would reduce batch size, ensure ordered processing by parent,
+ and avoid parallel execution. I would also partition data to avoid overlap, minimize unnecessary DML operations,
+  and optimize triggers and flows. Additionally, I would implement retry logic for lock failures
+   and move heavy operations to async processing to reduce contention. 
+  
+        Data Partitioning
+            ↓
+        Sequential Batch Execution (small size)
+            ↓
+        Ordered Queries (by parent)
+            ↓
+        Minimal DML
+            ↓
+        Async processing for heavy logic
+✅ 1. Reduce Batch Size (VERY EFFECTIVE)
+   Database.executeBatch(new MyBatch(), 50);// defualt 200
+✅ 2. Avoid Parallel Batch Execution
+    ✅ Fix:
+    Run batches sequentially
+    Avoid scheduling overlapping jobs
+✅ 3. Partition the Data (IMPORTANT)
+        Batch 1 → Accounts A–M
+        Batch 2 → Accounts N–Z
+        Or:
+        By Region
+        By CreatedDate
+        By RecordType
+
+✅ 3. Use Consistent Data Ordering
+      SELECT Id, AccountId FROM Opportunity ORDER BY AccountId
+    ✔ Why?
+    Ensures records with same parent are processed together
+    Avoids parallel threads trying to lock same parent
+
+

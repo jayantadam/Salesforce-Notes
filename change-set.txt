@@ -1,5 +1,6 @@
 What Is a Salesforce Change Set?
 
+https://www.youtube.com/watch?v=MIYAiTIlWKQ
 A **change set** is a collection of related changes (code, configuration, database scripts, etc.) grouped together for version control, review, or deployment.
 
 In Salesforce, a Change Set is a deployment tool used to move metadata (customizations) from one Salesforce environment to another — typically from a Sandbox 
@@ -34,129 +35,148 @@ Limitations of Change Sets
 
 
 # 2️⃣ Types of Change Sets
-There are two types:
-## 🔹 1. Outbound Change Set
-Created in the **source org** (usually Sandbox).
-It contains the components you want to deploy.
-## 🔹 2. Inbound Change Set
-Appears in the **target org** (usually Production).
-Used to validate and deploy the components.
+    There are two types:
+    ## 🔹 1. Outbound Change Set
+    Created in the **source org** (usually Sandbox).
+    It contains the components you want to deploy.
+    ## 🔹 2. Inbound Change Set
+    Appears in the **target org** (usually Production).
+    Used to validate and deploy the components.
 
 ---
 
 # 3️⃣ How Change Sets Work (Step-by-Step)
-
 ## Step 1: Create Outbound Change Set (Sandbox)
 Go to:
 > Setup → Deployment → Outbound Change Sets → New
 * Give it a name and description
 * Add components
-* Add profiles/permission sets (if needed)
----
-    ## Step 2: Add Components
-    You can add metadata like:
-    * Custom Objects
-    * Custom Fields
-    * Page Layouts
-    * Record Types
-    * Validation Rules
-    * Flows
-    * Apex Classes
-    * Lightning Components
-    * Permission Sets
-    * Custom Labels
-    * Email Templates
-    * Reports & Dashboards
-
+    ***
+        # ✅ 📊 Salesforce Change Set Components Cheat Sheet
+        | ✅ Category               | ✅ Components You CAN Deploy              | 💡 Example                      |
+        | ------------------------ | ---------------------------------------- | ------------------------------- |
+        | 💻 **Apex (Backend)**    | Apex Classes, Triggers, Test Classes     | Trigger for Account             |
+        | 🧩 **Objects & Fields**  | Custom Objects, Fields, Validation Rules | Account → Phone\_Extension\_\_c |
+        | ⚙️ **Automation**        | Flows, Workflow Rules, Process Builder   | Auto Email Flow                 |
+        | 🖼️ **Static Resources**  | Images, Files (used in UI/LWC)           | Logo Image                      |
+        | ⚡ **LWC**               | Lightning Web Components                 | Account List LWC                |
+        | 🧾 **Visualforce**       | VF Pages & Components                    | Legacy Page                     |
+        | 🎨 **UI / Layout**       | Page Layouts, Lightning Pages, Tabs      | Custom Account Layout           |
+        | 📊 **Reports**           | Reports, Dashboards, Report Types        | Sales Dashboard                 |
+        | 📧 **Email**             | Email Templates, Letterheads             | Welcome Email Template          |
+        | 🔗 **Relationships**     | Lookup, Master-Detail Relationships      | Account → Contact               |
+        | 📦 **Custom Metadata**   | Custom Metadata Types, Settings          | App Configuration               |
+    ***
+        # ❌ 🚫 Not Supported (Important)
+        | ❌ Cannot Deploy               | 💡 Reason                                                                              |
+        | ----------------------------- | -------------------------------------------------------------------------------------- |
+        | Record Data (Accounts, Leads) | Change Sets = Metadata only [\[salesforcecorner.com\]](https://salesforcecorner.com/salesforce-change-sets-explained/) |
+        | Chatter Data                  | Not configuration                                                                      |
+        | Some Standard Settings        | Limited support                                                                        |
+        | Partial Deployment            | All-or-nothing deploy [\[help.salesforce.com\]](https://help.salesforce.com/s/articleView?id=platform.changesets_about_inbound.htm&language=en_US&type=5)       |
+    ***
 Important:
 Change Sets move **metadata only**, NOT data.
 ---
-## Step 3: Upload to Target Org
-    Click **Upload** and select the connected org.
-    The target org must be:
-    * Connected (Deployment Settings enabled)
-    * Same Salesforce instance (usually)
-    * Under same production org family
----
-## Step 4: Validate in Target Org (Production)
-Go to:
-> Setup → Deployment → Inbound Change Sets
-* Open the change set
-* Click **Validate**
-Validation checks:
-    * Dependencies
-    * Test classes (if Apex is included)
-    * Deployment errors
----
-## Step 5: Deploy
-Once validation passes:
-* Click **Deploy**
-* Monitor deployment status
----
+##Step 2: Add the dependencies 
+            - Apex Test Class 
+            - Validation Rule
+            - Custom fields
+            - Fields used in rules
+            - Email alerts/templates
+            - Validation rules
+            - Record types
 
-# 4️⃣ What Can Be Deployed?
-    ### ✅ Supported Metadata Examples
-    * Custom metadata
-    * Apex (with test coverage requirement)
-    * Flows
-    * Lightning Web Components
-    * Profiles & Permission Sets
-    * Reports & Dashboards
-    * Custom Settings
+## Step 2: Upload to Target Org
+            Click **Upload** and select the connected org.
+            The target org must be:
+                * Connected (Deployment Settings enabled)
+                * Same Salesforce instance (usually)
+                * Under same production org family
+---
+## Step 3: Validate in Target Org (Production)
+        Go to:
+        > Setup → Deployment → Inbound Change Sets
+        * Open the change set
+        * You will get 3 button(Validate,Deploy,Delete)
+        * Click **Validate**
+            Validation checks:
+                * Dependencies
+                * Test classes (if Apex is included)
+                * Deployment errors
 
+What is Managed package tests
+    Managed package tests are Apex test classes provided by third-party packages installed from AppExchange. These tests validate the package’s functionality,
+    are not editable, and are usually excluded when running “Run Local Tests” during change set validation.  exmple- docSign          
+ 
+ validation options
+ 1. "Run All Tests"-
+     What it does : Runs every Apex test class in the org
+                      Includes: Custom code, Managed package tests
+ 2. "Run Local Tests" :  Execute only the Apex test classes that belong to your org (custom code), excluding all managed package tests.
+ 3. "Run Specified Tests" : Runs only selected test classes
+                            No Test Run (Sandbox Only)
+                            🔹 What it does: Skips test execution completely
+ 
+4. No Test Run (Sandbox Only) : Skips test execution completely
+---
+## Step 4: Deploy
+        Once validation passes:
+        * Click **Deploy**
+        * Monitor deployment status
+        ---
 ### ❌ Not Supported
-* Standard fields
-* Data records
-* Some standard picklist values
-* Connected app secrets
-* Users & roles
+        * Standard fields
+        * Data records
+        * Some standard picklist values
+        * Connected app secrets
+        * Users & roles
 ---
 # 5️⃣ Dependencies in Change Sets
-One major concept is **Dependencies**.
-If you deploy:
-* A Custom Field that belongs to an Object
-* A Flow that uses another Flow
-* An Apex Class that references another class
-    You must either:
-    * Add dependencies manually
-    OR
+    One major concept is **Dependencies**.
+    If you deploy:
+    * A Custom Field that belongs to an Object
+    * A Flow that uses another Flow
+    * An Apex Class that references another class
+        You must either:
+        * Add dependencies manually
+        OR
     * Click **View/Add Dependencies**
 Failure to include dependencies causes deployment errors.
 ---
 # 6️⃣ Test Coverage Requirement
-If Apex is included:
-* Minimum **75% code coverage** required in production
-* Tests must pass
-* You can choose:
-  * Run All Tests
-  * Run Specified Tests
-In production, Salesforce enforces strict testing before deployment.
+        If Apex is included:
+        * Minimum **75% code coverage** required in production
+        * Tests must pass
+        * You can choose:
+        * Run All Tests
+        * Run Specified Tests
+        In production, Salesforce enforces strict testing before deployment.
 ---
 
 # 7️⃣ Best Practices for Using Change Sets
-
-✅ Always validate first
-✅ Include permission sets
-✅ Check dependencies carefully
-✅ Test in Full/Partial Sandbox before Production
-✅ Maintain release documentation
-✅ Use naming conventions
----
+    ✅ Always validate first
+    ✅ Include permission sets
+    ✅ Check dependencies carefully
+    ✅ Test in Full/Partial Sandbox before Production
+    ✅ Maintain release documentation
+    ✅ Use naming conventions
+    ---
 # 8️⃣ Example Scenario
 
-Let’s say you created:
+    Let’s say you created:
 
-* A Custom Object: `Project__c`
-* Custom Field: `Budget__c`
-* Flow: Project Approval Flow
-* Apex Trigger on Project
+    * A Custom Object: `Project__c`
+    * Custom Field: `Budget__c`
+    * Flow: Project Approval Flow
+    * Apex Trigger on Project
 
-You would:
-1. Add all components
-2. Add related permission sets
-3. Upload
-4. Validate in Production
-5. Deploy
+    You would:
+    1. Add all components
+    2. Add related permission sets
+    3. Upload
+    4. Validate in Production
+    5. Deploy
 
 # 9️⃣ Conclusion
 Salesforce Change Sets are a powerful tool for admins and developers to manage metadata deployments between environments.

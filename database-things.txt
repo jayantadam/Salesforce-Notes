@@ -1,1 +1,108 @@
 DB related things in APEX
+public class GoodBadRecordExample {
+  public static void runExample() {
+        // ✅ Good records
+        Account acc1 = new Account(Name = 'Good Account 1');
+        Account acc2 = new Account(Name = 'Good Account 2');
+
+        // ❌ Bad record (Name is required)
+        Account badAcc = new Account();
+
+        List<Account> allRecords = new List<Account>{acc1, badAcc, acc2};
+
+        // Step 1: Savepoint
+        Savepoint sp = Database.setSavepoint();
+
+        try {
+            // Step 2: Try inserting ALL → will fail due to bad record
+            insert allRecords;
+
+        } catch (Exception e) {
+            System.debug('❌ Insert failed: ' + e.getMessage());
+
+            // Step 3: Rollback everything
+            Database.rollback(sp);
+
+            System.debug('🔄 Rolled back all records');
+
+            // Step 4: Filter only good records
+            List<Account> goodRecords = new List<Account>();
+
+            for (Account acc : allRecords) {
+                if (acc.Name != null) {   // ✅ simple validation
+                    goodRecords.add(acc);
+                }
+            }
+
+            // Step 5: Insert only valid records
+            insert goodRecords;
+
+            System.debug('✅ Only good records inserted');
+        }
+    }
+}
+``
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+public class PartialSuccessExample {
+
+    public static void runExample() {
+
+        List<Account> accList = new List<Account>{
+            new Account(Name = 'Valid Account 1'),   // ✅ success
+            new Account(),                           // ❌ fail (Name missing)
+            new Account(Name = 'Valid Account 2')    // ✅ success
+        };
+
+        // Partial insert (no full rollback)
+        Database.SaveResult[] results = Database.insert(accList, false);
+
+        // Process results
+        for (Integer i = 0; i < results.size(); i++) {
+
+            if (results[i].isSuccess()) {
+                System.debug('✅ Success: ' + accList[i].Name);
+            } else {
+                System.debug('❌ Failed: ' + results[i].getErrors()[0].getMessage());
+            }
+        }
+    }
+}
+
+
+global class BatchTotalCount implements Database.Batchable<sObject>, Database.Stateful {
+
+    // Global counters (persist across batches)
+    Integer successCount = 0;
+    Integer failCount = 0;
+
+    // Step 1: Fetch data
+    global Database.QueryLocator start(Database.BatchableContext bc) {
+        return Database.getQueryLocator('SELECT Id, Name FROM Account');
+    }
+
+    // Step 2: Process records
+    global void execute(Database.BatchableContext bc, List<Account> scope) {
+
+        // Use partial success
+        Database.SaveResult[] results = Database.update(scope, false);
+
+        for (Integer i = 0; i < results.size(); i++) {
+            if (results[i].isSuccess()) {
+                successCount++;
+            } else {
+                failCount++;
+            }
+        }
+    }
+
+    // Step 3: Final summary (NOT batch-wise)
+    global void finish(Database.BatchableContext bc) {
+
+        System.debug('✅ TOTAL SUCCESS: ' + successCount);
+        System.debug('❌ TOTAL FAILED: ' + failCount);
+
+        // Optional: send email or log record
+    }
+}
+            Database.executeBatch(new BatchTotalCount(), 200);

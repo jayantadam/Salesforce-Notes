@@ -1,102 +1,185 @@
-typesoIn Salesforce, **Apex integration** refers to using Apex code to connect Salesforce with external systems. These integrations are mainly categorized based on how data flows between systems.
+typesoIn Salesforce, **Apex integration** refers to using Apex code to connect Salesforce with external systems. These integrations are mainly categorized based on 
+how data flows between systems.
 
 Here are the key types of Apex integration:
-
----
-
-### 🔌 1. **Apex Callouts (Outbound Integration)**
-
+### 1. ⚡ UI-Based Integration
+    👉 Embedding external UI inside Salesforce or vice versa
+   
+    ✅ Use case: Show external app UI in Salesforce
+ 🔧 Methods:
+    Lightning Components
+    iFrame
+    Canvas App
+--------------------------------------------------------------------------------------------------------------------------------------------------------------   
+### 🔌 2. **Apex Callouts (Outbound Integration)**
 Salesforce (via Apex) sends requests to external systems.
-
 **Types of callouts:**
-
 * **REST Callouts** → Uses HTTP methods (GET, POST, PUT, DELETE)
 * **SOAP Callouts** → Uses WSDL-based web services
 
 📌 Example: Sending customer data from Salesforce to a payment gateway.
-
----
-
+ i. Use **HTTP Callouts** in Apex to send data to external system.
+            Example: Notify external system when Opportunity is Closed Won.
+          ```apex
+            Http http = new Http();
+            HttpRequest request = new HttpRequest();
+            request.setEndpoint('https://external-system.com/api/notify');
+            request.setMethod('POST');
+            request.setHeader('Content-Type', 'application/json');
+            request.setBody('{"message":"Opportunity Closed Won"}');
+            HttpResponse response = http.send(request);
+            if (response.getStatusCode() == 200) {
+                System.debug('Notification sent successfully');
+            } else {
+                System.debug('Failed to send notification: ' + response.getBody());
+            }
+    ```
+ii. You can also call external REST API from **Flow** using **HTTP Callout** action.
+            HTTP Callout in Flow:
+            - Method: POST
+            - URL: https://external-system.com/api/notify
+            - Body: {"message":"Opportunity Closed Won"}
+            ```
+iii. For **authentication**, you can use **Named Credentials** to manage endpoint and credentials securely.
+iv. You can also use **External Services** to connect to external REST APIs without writing code by importing API schema.   
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
 ### ⬅️ 2. **Apex Web Services (Inbound Integration)**
+        External systems call Apex methods to send or retrieve data.
+        **Types:**
+        * **REST Apex Web Services** (`@RestResource`)
+        * **SOAP Apex Web Services** (`webService` keyword)
+    📌 Example: A mobile app pushing order data into Salesforce.
+        i. Create a REST endpoint using `@RestResource` in Apex:
+                    ```apex
+                    @RestResource(urlMapping='/orders/*')
+                    global with sharing class OrderService {
+                        @HttpPost
+                        global static void createOrder() {
+                            RestRequest req = RestContext.request;
+                            String requestBody = req.getBodyAsString();
+                            // Parse JSON and create Order record
+                            Order__c newOrder = new Order__c();
+                            // Set fields based on requestBody
+                            newOrder.Name = (String)Json.deserializeUntyped(requestBody).get('name'); 
+                            newOrder.Amount__c = (Decimal)Json.deserializeUntyped(requestBody).get('amount');
+                            newOrder.Description__c = (String)Json.deserializeUntyped(requestBody).get('description');
+                            insert newOrder;
+                        }
 
-External systems call Apex methods to send or retrieve data.
+                        @httpGet
+                        global static String getOrder() {
+                            // Retrieve order data and return as JSON
+                            List<Order__c> orders = [SELECT Id, Name, Amount__c, Description__c FROM Order__c];
+                            return JSON.serialize(orders); // Convert list of orders to JSON string
+                        }
 
-**Types:**
+                        @httpPut
+                        global static void updateOrder() {
+                            RestRequest req = RestContext.request;
+                            String requestBody = req.getBodyAsString();
+                            
+                            // Parse JSON to get order Id and updated fields
+                            Map<String, Object> data = (Map<String, Object>)Json.deserializeUntyped(requestBody);
+                            Id orderId = Id.valueOf((String)data.get('id'));
 
-* **REST Apex Web Services** (`@RestResource`)
-* **SOAP Apex Web Services** (`webService` keyword)
+                            Order__c existingOrder = [SELECT Id FROM Order__c WHERE Id = :orderId LIMIT 1];
+                            existingOrder.Name = (String)data.get('name');
+                            existingOrder.Amount__c = (Decimal)data.get('amount');
+                            existingOrder.Description__c = (String)data.get('description');
+                            update existingOrder;
+                        }
 
-📌 Example: A mobile app pushing order data into Salesforce.
+                        @httpDelete
+                        global static void deleteOrder() {
+                            RestRequest req = RestContext.request;
+                            String requestBody = req.getBodyAsString();
+                            
+                            // Parse JSON to get order Id
+                            Map<String, Object> data = (Map<String, Object>)Json.deserializeUntyped(requestBody);
+                            Id orderId = Id.valueOf((String)data.get('id'));
 
----
+                            Order__c existingOrder = [SELECT Id FROM Order__c WHERE Id = :orderId LIMIT 1];
+                            delete existingOrder;
+                        }
 
+                        https://<instance>.salesforce.com/services/apexrest/AccountAPI/ // Once deployed, your endpoint looks like:
+
+                        https://yourdomain.my.salesforce.com/services/apexrest/AccountAPI/ //If using My Domain:
+
+        ```
+        ii. Inbound Salesforce Standard REST API (sObject Resource)
+                Example: External system creates a Lead in Salesforce using REST API.            
+            Setup -> app manager -> new connected app -> enable OAuth -> get client id and secret -> use in external system to get access token -
+            Get the secret token from profile -> settings -> reset secret token -> use in postman to get access token 
+            Set in postman -> 
+                Url - https://login.salesforce.com/services/oauth2/success 
+                grant_type: password
+                client_id:3MVG9GCMQoQ6rpzSnw2.GE2hufyOCEYJSUJtVKIXnGMCNkzVzPRkbqyRt8zkNLUn53W6utwyqbfDu_XOM1E2n
+                client_secret:B70CFB1AAB57BFB2F8C3F599DBF98A9FC514F46EB938943A686A14D7B4A4BD01
+                username: jayantadam.jda987@agentforce.com
+                password: InsideMyVDI@199616olTUdkAD0lOa072DAHehgt2Jd
+                it will return the access token and instance url -> use instance url and add access token the request header 
+                -> Authorization: Bearer your_access_token -> go to body -> raw -> json 
+                -> enter the lead data -> send request -> check response for success.
+                        open [postman](https://www.postman.com/) -> create new request -> set method to POST 
+                        -> enter URL (https://yourInstance.salesforce.com/services/data/v59.0/sobjects/Lead/) -> go to Authorization tab -> select OAuth 2.0 ->
+                        click Get New Access Token -> fill in details (client id, client secret, auth URL, token URL) -> click Request Token ->
+                        use the token in the request header (Authorization: Bearer your_access_token) -> go to Body tab -> select raw and JSON format ->
+                    enter JSON data for Lead -> click Send -> check response for success.
+
+                    Example: Create Lead from external system using REST API.
+                    ``` 
+                    POST /services/data/v59.0/sobjects/Lead/
+                    {
+                        "LastName":"Ravi",
+                        "Company":"ABC Company",
+                        "Phone":"9876543210"
+                    }
+                    ``` 
+            i.   Standard REST API (CRUD operations)
+            ii.  Composite REST API (multiple calls in one request)
+            iii. Custom Apex REST API (custom logic, reset operations)
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------
 ### 🔄 3. **Asynchronous Apex Integration**
-
-Used when integration processes take time or need to handle large data.
-
-**Types:**
-
-* `@future` methods (for simple async callouts)
-* **Queueable Apex**
-* **Batch Apex**
-* **Schedulable Apex**
-
-📌 Example: Syncing large datasets with an external ERP system.
-
----
-
-### 📡 4. **Streaming & Event-Based Integration**
-
-Real-time communication using events.
-
-**Types:**
-
-* **Platform Events**
-* **Change Data Capture (CDC)**
-* **PushTopics**
-
-📌 Example: Notifying an external system when a record is updated.
-
----
-
-### 🔐 5. **Secured Integration (Authentication-Based)**
-
-Ensures safe communication with external systems.
-
-**Common methods:**
-
-* OAuth 2.0
-* Named Credentials
-* JWT (JSON Web Token)
-
+        Used when integration processes take time or need to handle large data.
+        **Types:**
+        * `@future` methods (for simple async callouts)
+        * **Queueable Apex**
+        * **Batch Apex**
+        * **Schedulable Apex**
+        📌 Example: Syncing large datasets with an external ERP system.
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+### 📡 4. Platform Events **Streaming & Event-Based Integration**
+            Real-time communication using events.
+            **Types:**
+            * **Platform Events**
+            * **Change Data Capture (CDC)**
+            * **PushTopics**
+            📌 Example: Notifying an external system when a record is updated.
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+### 🧩 5.Batch Data Integration (Data Loader)
+            ### Example
+            Import **10,000 Contacts from Excel**.
+            ### Steps
+        1. Export data as **CSV file**.
+        2. Open **Data Loader**.
+        3. Click **Insert**.
+        4. Select **Contact object**.
+        5. Upload CSV.
+        6. Map fields.
+        7. Click **Finish**.
+        Records get inserted in bulk.
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+### 🔐 6. **Secured Integration (Authentication-Based)**
+        Ensures safe communication with external systems.
+        **Common methods:**
+        * OAuth 2.0
+        * Named Credentials
+        * JWT (JSON Web Token)
 📌 Example: Secure API communication with a third-party service.
-
----
-
-### 🧩 6. **Composite & Chained Callouts**
-
-* Combine multiple API calls into one request.
-* Improves performance and reduces API limits usage.
-
-📌 Example: Creating an account and contact in a single API transaction.
-
----
-
-### 🕒 7. **Scheduled Integration**
-
-* Runs integration at fixed intervals.
-* Uses **Schedulable Apex**.
-
-📌 Example: Daily data sync between Salesforce and a legacy system.
-
----
-
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------
 ### 🧠 Key Idea
-
 * **Outbound (Callouts)** → Salesforce → External system
 * **Inbound (Web Services)** → External system → Salesforce
 * **Async/Event-Based** → For performance and real-time updates
-
 ---
-
-If you want, I can also give you **interview questions, code examples, or diagrams** for Apex integration.

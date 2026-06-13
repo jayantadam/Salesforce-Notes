@@ -1,148 +1,207 @@
-## Scenario
+🔹 1. Platform Event Trigger runs:
+        Asynchronously
+        After the event is published
 
-“When an Opportunity is marked **Closed Won**, publish a Platform Event.  
-A subscriber (Apex Trigger on the event) creates a follow‑up Task for the Opportunity Owner.”
+🔹 2. Only after insert is supported
+      Apextrigger MyEventTrigger on My_Event__e (after insert)``Show more lines
+        trigger MyEventTrigger on My_Event__e (after insert)
+        ``
+🔹 3. Trigger Context Variables Available
+        Trigger.New
+        No Trigger.Old
+
+🔹 4. No DML on Platform Event itself
+👉 You cannot update/delete event records
+        Order_Event__e eventMsg = new Order_Event__e(
+            Order_Id__c = 'ORD123',
+            Status__c = 'Created',
+            Amount__c = 500
+        );
+
+        Database.SaveResult sr = EventBus.publish(eventMsg);
+✅ Real-World Use Cases (Important for Interview)
+✅ 1. Integration
+        External system sends event → Salesforce processes it
+✅ 2. Microservices / Decoupling
+        Multiple consumers listen to same event
+✅ 3. Async Processing
+        Replace future methods / queueable in some cases
+
+✅ Interview Trick Questions
+    ❓ Q: Is it synchronous or async?
+         ✅ Async
+
+    ❓ Q: Can we call callouts?
+         ✅ Yes (allowed because async context) whereas in triggers on standard objects callouts are not allowed.
+
+    ❓ Q: Can multiple subscribers exist?
+         ✅ Yes, multiple triggers/processes can subscribe
+
+    ❓ Q: What is event retention?
+         ✅ Platform events are retained for:24 hours (standard)
+
+
+Here’s a **complete Sales Cloud Platform Event example** for your exact requirement:
+
+👉 **Lead → Platform Event → Task creation + LWC real-time subscriber**
 
 ***
-
-## 1) Define the Platform Event
-
-Setup → **Platform Events** → New
-
-*   **Label**: Opportunity Won Event
-*   **API Name**: Opportunity\_Won\_Event\_\_e
-*   **Fields** (example):
-    *   OpportunityId\_\_c (Text, 18)
-    *   Amount\_\_c (Number, 18,2)
-    *   OwnerId\_\_c (Text, 18)
-    *   Message\_\_c (Text, 255)
-
-> After saving, **Deploy** the event (if org requires).
-
+# 🚀 ✅ Use Case
+When a **High-Value Lead (Rating = Hot)** is created:
+✅ Publish Platform Event\
+✅ Create Task for Sales team (Subscriber - Apex)\
+✅ Show real-time notification in UI (Subscriber - LWC)
+***
+# ✅ ✅ Step 1: Create Platform Event
+**Setup → Platform Events → New**
+    * Label: **High Value Lead Event**
+    * API Name: `High_Value_Lead__e`
+    * Publish: **Immediately**
+***
+## ➕ Add Fields
+* `Lead_Id__c` (Text 18)
+* `Name__c` (Text)
+* `Company__c` (Text)
+* `Rating__c` (Text)
 ***
 
-## 2) Publisher (Apex) – Fire event when Opp becomes Closed Won
-
-Create an **after update** trigger on Opportunity:
-
+# ✅ ✅ Step 2: Trigger (Publisher on Lead)
 ```apex
-trigger OpportunityAfterUpdate on Opportunity (after update) {
-    List<Opportunity_Won_Event__e> eventsToPublish = new List<Opportunity_Won_Event__e>();
+trigger LeadTrigger on Lead (after insert) {
 
-    for (Opportunity newOpp : Trigger.new) {
-        Opportunity oldOpp = Trigger.oldMap.get(newOpp.Id);
+    List<High_Value_Lead__e> events = new List<High_Value_Lead__e>();
 
-        // Publish only when Stage changes to Closed Won
-        if (newOpp.StageName == 'Closed Won' && oldOpp.StageName != 'Closed Won') {
-            eventsToPublish.add(new Opportunity_Won_Event__e(
-                OpportunityId__c = newOpp.Id,
-                Amount__c       = newOpp.Amount,
-                OwnerId__c      = newOpp.OwnerId,
-                Message__c      = 'Opportunity Closed Won'
+    for (Lead l : Trigger.new) {
+
+        if (l.Rating == 'Hot') {
+
+            events.add(new High_Value_Lead__e(
+                Lead_Id__c = l.Id,
+                Name__c = l.Name,
+                Company__c = l.Company,
+                Rating__c = l.Rating
             ));
         }
     }
 
-    if (!eventsToPublish.isEmpty()) {
-        Database.SaveResult sr = EventBus.publish(eventsToPublish);
-        // Optional: check sr.isSuccess() or sr.getErrors() for logging
+    if (!events.isEmpty()) {
+        EventBus.publish(events);
     }
 }
 ```
-
-> You can also publish from **Flow** (Record-Triggered Flow on Opportunity → Action: **Publish Platform Event**) using the same fields.
-
+✅ Publishes event when **Hot Lead created**
 ***
+# ✅ ✅ Step 3: Apex Subscriber (Create Task)
+            ```apex
+            trigger LeadEventSubscriber on High_Value_Lead__e (after insert) {
 
-## 3) Subscriber (Apex) – Listen to the event and create a Task
+                List<Task> taskList = new List<Task>();
+                for (High_Value_Lead__e evt : Trigger.new) {
+                    taskList.add(new Task(
+                        Subject = 'Follow up with High Value Lead',
+                        Description = 'Lead Name: ' + evt.Name__c,
+                        Priority = 'High',
+                        Status = 'Not Started'
+                    ));
+                }
+                insert taskList;
+            }
+            ```
+    ✅ Automatically creates **Task**
+    ***
+# ✅ ✅ Step 4: LWC Subscriber (Real-Time UI)
+        ***
+        ## 🔹 leadEventListener.js
+        ```javascript
+        import { LightningElement } from 'lwc';
+        import { subscribe } from 'lightning/empApi';
 
-Create an **Apex Trigger on the Platform Event**:
+        export default class LeadEventListener extends LightningElement {
 
-```apex
-trigger OpportunityWonEventTrigger on Opportunity_Won_Event__e (after insert) {
-    List<Task> tasks = new List<Task>();
+            channelName = '/event/High_Value_Lead__e';
+            subscription = null;
 
-    for (Opportunity_Won_Event__e evt : Trigger.new) {
-        if (String.isBlank(evt.OpportunityId__c) || String.isBlank(evt.OwnerId__c)) continue;
+            connectedCallback() {
+                this.subscribeToEvent();
+            }
 
-        tasks.add(new Task(
-            WhatId      = Id.valueOf(evt.OpportunityId__c),
-            OwnerId     = Id.valueOf(evt.OwnerId__c),
-            Subject     = 'Follow up after Closed Won',
-            Priority    = 'High',
-            Status      = 'Not Started',
-            Description = evt.Message__c + ' | Amount: ' + String.valueOf(evt.Amount__c)
-        ));
-    }
+            subscribeToEvent() {
+                subscribe(this.channelName, -1, (event) => {
 
-    if (!tasks.isEmpty()) {
-        insert tasks;
-    }
-}
-```
+                    const payload = event.data.payload;
 
-This trigger runs asynchronously when events arrive, and creates Tasks accordingly.
+                    console.log('Event received:', payload);
 
-***
+                    alert(
+                        '🔥 New High Value Lead!\n' +
+                        'Name: ' + payload.Name__c +
+                        '\nCompany: ' + payload.Company__c
+                    );
 
-## (Optional) Subscribe from LWC (Realtime UI)
-
-If you want the UI to react instantly, use `empApi` to subscribe to the event channel.
-
-**LWC JavaScript (opportunityWonListener.js):**
-
-```javascript
-import { LightningElement } from 'lwc';
-import { createMessageContext, releaseMessageContext, subscribe, unsubscribe } from 'lightning/messageService';
-import EMP_API from 'lightning/empApi';
-
-export default class OpportunityWonListener extends LightningElement {
-    channelName = '/event/Opportunity_Won_Event__e';
-    subscription = {};
-    context = createMessageContext();
-
-    connectedCallback() {
-        this.handleSubscribe();
-    }
-
-    disconnectedCallback() {
-        this.handleUnsubscribe();
-        releaseMessageContext(this.context);
-    }
-
-    handleSubscribe() {
-        const messageCallback = (response) => {
-            const payload = response?.data?.payload;
-            // Do something with payload fields, e.g. show a toast
-            console.log('Event Received:', payload);
-        };
-        EMP_API.subscribe(this.channelName, -1, messageCallback).then(response => {
-            this.subscription = response;
-        });
-    }
-
-    handleUnsubscribe() {
-        if (this.subscription && this.subscription.id) {
-            EMP_API.unsubscribe(this.subscription, () => { this.subscription = null; });
+                }).then(response => {
+                    this.subscription = response;
+                    console.log('Subscribed successfully');
+                });
+            }
         }
-    }
-}
-```
+        ```
 
-> Note: In newer implementations, use the **empApi** or **CometD** pattern supported by Salesforce. Ensure the component has the right permissions (Lightning page, user profile).
+        ***
+## 🔹 leadEventListener.html
+**
+# ✅ ✅ Step 5: Add LWC to Page
+            1. Go to **App Builder**
+            2. Add component to:
+            * Home Page OR
+            * Sales App Page
+            3. Save & Activate
 
-***
+            ***
 
-## Key Notes (Quick)
+            # ✅ ✅ End-to-End Flow
 
-*   **Transaction**: Publishing is part of the same transaction as your trigger/Flow. Event delivery is async and **eventual**.
-*   **Ordering**: Events are ordered **per transaction**, not globally.
-*   **Limits**: Check Platform Event publish limits (per hour/org) and event payload size.
-*   **Security**: Subscribers run in **system context** (event triggers), so handle validation and guardrails.
-*   **Replay**: Streaming API supports **replayId** to resume from a point in time (UI/CometD subscribers).
-*   **Error handling**: If subscriber fails, it retries according to the event bus policies (but design idempotent logic).
+            ```
+            Lead Created (Hot)
+                    ↓
+            Apex Trigger (Publisher)
+                    ↓
+            Platform Event (High_Value_Lead__e)
+                    ↓
+            -----------------------------------------
+            ↓                       ↓
+            Apex Subscriber         LWC Subscriber
+            (Task Created)          (Real-time Alert)
+            ```
+        ***
 
-***
+        # ✅ ✅ Output
 
-If you want, I can generate a **compact .md cheat sheet** with these snippets for your study folder. Want me to?
-plat
+        ✔ Lead created\
+        ✔ Event fired\
+        ✔ Task created automatically\
+        ✔ UI shows instant popup
+
+        ***
+
+        # ✅ ✅ Key Points
+
+        * Trigger → publishes event
+        * Apex trigger on event → backend processing
+        * LWC (EMP API) → real-time UI
+        * Supports multiple subscribers
+
+        ***
+
+        # 🎯 Interview Answer
+
+        “In Sales Cloud, when a high-value lead is created, an Apex trigger publishes a platform event. This event is consumed by an Apex subscriber to create tasks and an LWC
+        subscriber using EMP API to show real-time UI notifications.”
+
+        ***
+
+        ***
+
+        If you want next:
+        ✅ Add owner assignment logic\
+        ✅ Add Flow-based subscriber (no code)\
+        ✅ Debug logs for this full flow 🔥

@@ -1,11 +1,7 @@
+==============Old Sandbox====================================================
 Link - https://orgfarm-d4f01930d3-dev-ed.develop.my.salesforce.com
 Username - jayantadam.jda987@agentforce.com
 InsideMyVDI@199616
-
-==============Old Sandbox====================================================
-https://orgfarm-d4f01930d3-dev-ed.develop.my.salesforce.com/
-Username
-admin user - jayantadam.jda987@agentforce.com
 
 Inside@161996
 
@@ -25,6 +21,62 @@ URL - https://orgfarm-986409c268-dev-ed.develop.my.salesforce.com
    Password -  Inside@512196
 
 ====================================================end====================================================================
+        HttpRequest req = new HttpRequest();
+        req.setEndpoint('callout:GitHub_API/users');
+        req.setMethod('GET');
+
+        Http http = new Http();
+        HttpResponse res = http.send(req);
+=======================================================================================================================================================================================
+ try {
+            Account acc = new Account(Name='Test Account');
+            insert acc; // suppose this fails
+        }
+        catch(Exception e) {
+IMP -  e.getMessage()  System.debug('Caught exception: ' + e.getMessage());
+        }
+---------------------------------------------------------------------------------------------------------------------------------
+deserializeUntyped() is an Apex method used to parse JSON into generic Apex types when you don’t have (or don’t want) a strongly-typed class structure.
+It returns data as combinations of:
+
+Map<String, Object>
+List<Object>
+Primitive values (String, Decimal, Boolean, etc.)
+example Apex code to parse JSON using deserializeUntyped():
+    String jsonString = '{"name":"John Doe","age":30,"isActive":true,"skills":["Apex","Visualforce"],"address":{"street":"123 Main St","city":"Anytown"}}';
+    Map<String, Object> jsonMap = (Map<String, Object>)Json.deserializeUntyped(jsonString);
+    String name = (String)jsonMap.get('name'); // "John Doe"
+    Integer age = (Integer)jsonMap.get('age'); // 30
+    Boolean isActive = (Boolean)jsonMap.get('isActive'); // true
+
+--------------------------------------------------------------------------------------------------------------------------------------
+
+In Salesforce Apex, the default access modifier depends on what you are defining: (video 12)
+
+Classes → Default: public (namespace-level)
+    This means if you do not explicitly specify public, private, or global, the class is accessible to all Apex code in the same namespace
+    but not outside the namespace (e.g., not exposed to other packages or external systems).
+
+Methods/Variables → Default: private
+   Meaning they are accessible only within the same class.
+
+every time we should follow same Syntax for declaring variable (video 12 time 10.12 seconds)
+       access modifier => data type => variable name 
+       example public string name ="jayendra"
+  
+      public class MyClass {          
+          // Instance variable
+          public String message;
+          // Constructor
+            public MyClass(String msg) {
+                message = msg;
+            }
+          // Method to display message
+            public void showMessage() {
+                System.debug('Message: ' + message);
+            }
+      }
+ =======================================================================================================================================================================================     
  Important Errors Explained
  ❗Mixed DML Error   ===> System.MixedDMLException
     Occurs when:
@@ -227,9 +279,22 @@ Acryonym for Capability - LLSSJQC
 | Lifecycle atch start, execute, finish             | ✅ Has start(), execute(), finish() methods                      | ❌ Only has execute() method                           |
 | Stateful processing                               | ✅ Supports `Database.Stateful` to maintain state across batches | ❌ Cannot maintain state between executions            |
 | Scheduling                                        | ✅ Can be scheduled to run at specific times                     | ❌ Cannot be scheduled (must be invoked)              |
-| Job failure                                       | ✅ If one batch fails, others still run                          | ❌ If job fails, whole job fails                       |
+| Job failure batch                                 | ✅ If one batch fails, others still run                          | ❌ If job fails, whole job fails                       |
 | QueryLocator for large queries (50 million)       | ✅ Can use `Database.QueryLocator` (up to 50 million records)    | ❌ Cannot use QueryLocator                             |
 | Chunking                                          | ✅ Splits records into batches (default 200)                     | ❌ Processes all records in one job                    |
+
+
+Acronym for Letter - SSCCPF for Queueable vs Batch Apex
+
+| Letter | Meaning                        | Explanation                            |
+| ------ | ------------------------------ | -------------------------------------- |
+| **S**  | **Simpler**                    | Only one method (`execute`)            |
+| **S**  | **Small–Medium Data**          | Best for < 50k records                 |
+| **C**  | **Complex Data Support**       | Supports List, Map, sObjects, wrappers |
+| **C**  | **Chaining**                   | Can chain jobs in `execute()`          |
+| **P**  | **Performance (Low Overhead)** | Less processing cost vs Batch          |
+| **F**  | **Faster Execution**           | No batch chunk overhead                |
+
 
 Stateful processing example in Batch Apex:
         public class BatchStatefulCheat implements Database.Batchable<sObject>, Database.Stateful {
@@ -258,6 +323,9 @@ Stateful processing example in Batch Apex:
             }
         }
 
+
+        
+
 Need to Prepare the project and use cases for interview
 which projecgt worked on and what use cases you have done in that project
 LWC pages
@@ -265,16 +333,26 @@ LWC pages
 LMC use case and can we use other org LMC in our org
 type of flows in salesforce and which flow you have used in your project
 
+Acryonym - 
 Salesforce Trigger Order of Execution -
     1️⃣ Validation Rules
     2️⃣ Before Triggers
-    3️⃣ Record Is Saved (But Not Committed Yet)
-    4️⃣ After Triggers
-    5️⃣ Assignment Rules -> Lead Assignment Rules
-    6️⃣ Auto-Response Rules -> Automatic email responses are sent (if configured).
-    7️⃣ Flows / Process Builder / Workflow Rules 
-    8️⃣ Escalation Rules (For Cases)
-    9️⃣ Final Commit
+        3️⃣ Custom Validation Rules
+            -> Prevent to change amount
+                            AND(
+                            ISPICKVAL(StageName, "Closed Won"),
+                            ISCHANGED(Amount)
+                        )
+        4️⃣ Duplicate Rules
+    5️⃣ Record Is Saved (But Not Committed Yet)
+    6️⃣ After Triggers
+    7️⃣ Assignment Rules -> Lead Assignment Rules
+    8️⃣ Auto-Response Rules -> Automatic email responses are sent (if configured).
+    9️⃣ Flows / Process Builder / Workflow Rules 
+    🔟 Escalation Rules (For Cases)
+        1️⃣1️⃣ Roll-up Summary Fields
+        1️⃣2️⃣ Final Commit
+    1️⃣3️⃣ Post-Commit (Emails, Async Apex)
 
 Software Development Lifecycle?
  Planning → Analysis → Design → Development → Testing → Deployment → Maintenance
@@ -365,42 +443,37 @@ Apex Per‑Transaction Limits
 
  SOQL Limits
     Total SOQL queries issued - 100 (Sync Apex) / 200 (Async)
-    Records retrieved by SOQL - 50,000
+    Records retrieved by SOQL - 50,000 
  DML Limits
-    Total DML operations  150
+    Total DML operations  150 
     Records processed by DML statements - 10,000
  Heap Size
     Maximum heap size - 6 MB (Sync) / 12 MB (Async)
  CPU Time
-    maximum CPU time on Salesforce servers - 10,000 ms (Sync) / 60,000 ms (Async)      
+    maximum CPU time on Salesforce servers - 10,000 ms (10 sec) (Sync) / 60,000 ms (60sec) (Async)      
 
  Trigger-Specific Limits
-    Never do SOQL/DML inside loop ❌
-    Use Lists, Sets, Maps for bulk operations ✔
-    Use Trigger.new and Trigger.old efficiently
     Limit recursion by static Boolean flags
+    Use Trigger.new and Trigger.old efficiently
+    Use Lists, Sets, Maps for bulk operations ✔
+    Never do SOQL/DML inside loop ❌
+Acronym - SODHCT
+
+🔹 Synchronous
+    Account acc = new Account(Name = 'Test');
+       insert acc;  // user waits
+        ``
+🔹 Asynchronous
+    @future
+    public static void updateAccount() {
+        Account acc = [SELECT Id FROM Account LIMIT 1];
+        acc.Name = 'Updated';
+        update acc;
+    }
+
 ================================================================================================================================================================================
 decoraters in lwc
   track, wire, api
-
-syntax of calling apex method from lwc
-   passing parameter from lwc to apex
-   calling apex method on button click in lwc
-
-   before making callout basic setup or config we have to salesforce
-
-@wire(messageContext) messageContext;
-
-wire(AppexMethodName,{param:'$propertyName'})
-    getData({data,error}){
-    if(data){
-    //do something
-    }
-    if(error){
-    //handle error
-    }
-    };
-
 Type of Apex in Salesforce
 ============================================================Apex Types in Salesforce=========================================================================================================================
 | **Category**        | **Apex Type**     | **Purpose**                    |
@@ -410,8 +483,8 @@ Type of Apex in Salesforce
 |                     | LWC/Aura Apex     | Server logic for components    |                     
 |                     | VF Controllers    | UI logic for Visualforce       |
 | Asynchronous Apex   | Future Methods    | Simple async tasks             |
-|                     | Queueable Apex    | Advanced async + chaining      |
 |                     | Batch Apex        | Large data processing          |
+|                     | Queueable Apex    | Advanced async + chaining      |
 |                     | Schedulable Apex  | Run on schedule (CRON)         |
 |                     | Continuations     | Long-running callouts          |
 | Security Apex       | With Sharing      | Enforce sharing rules          |
@@ -457,35 +530,92 @@ Part of Sharing Model?          No                                              
 Hierarchy?                      No hierarchy                                                         Has hierarchy (manager → subordinate data visibility)
 Login Restrictions              Profiles affect login restrictions and app/tab access;                      Roles do not.
 Sharing Model                   Roles participate in record-sharing hierarchy;                              Profiles do not.
+=========================================================================================================================================================================================
+What is profile in salesforce and how to create a profile
+A Profile in Salesforce is a collection of settings and permissions that define what a user can do within the Salesforce org. 
+It controls access to objects, fields, tabs, and various system permissions. Every user must be assigned a Profile, which serves as their baseline level of access.
+To create a Profile:
+1. Go to Setup.
+2. In the Quick Find box, type "Profiles" and select it.
+3. Click "New Profile."
+4. Choose an existing profile to clone (e.g., Standard User) and click "Next"
+5. Enter a name for the new profile (e.g., "Custom Sales Profile").
+6. Click "Save."
 
+it contains settings like:
+Acryonym - OAFC
 
+- Object Settings
+    Permissions to access objects and fields, and settings that specify which record types, page layouts, and tabs are visible
+- Apex Class Access
+    Permissions to execute Apex classes
+- Flow Access
+    Flow Access is a permission that controls which users are allowed to run or use a Flow (Flow Builder automation) in Salesforce.
+- App Permissions 
+     sales app - lead manage
+- Named Credential Access / external credential in permission set
+    A Named Credential stores: Endpoint URL, Authentication details (OAuth, Username/Password)
+👉 Access setting = Who can use that credential
+- Visualforce Page Access    
+    Permissions to access Visualforce pages.
+- Custom Permissions
+    A way to give special access to specific features, logic, or functionality in Salesforce.
+    👉 Custom Permission = A custom access flag you control in code or configuration
+    👉They are not directly assigned to Profiles.
+    Instead:
+        🔹 1. Use in Apex Code
+            if (FeatureManagement.checkPermission('My_Custom_Permission')) 
+        🔹 2. Use in Validation Rules
+            AND(
+                ISPICKVAL(StageName, "Closed Won"),
+                ISCHANGED(Amount),
+                $Permission.My_Custom_Permission
+            )
+
+}
+
+System
+- System permissions (e.g., "Edit Read Only Fields", "View All Data","Modify All Data", "Author Apex")
+      - users (Assign permission set, Manage Profiles and Permission Sets, Manage User, Manage Roles,Manage Password Policies,Freeze Users)
+- Login Hours and IP Ranges
+        Control when and where users can log in.
+- Password Policies
+    Define password complexity, expiration, and lockout settings.
 =========================================================================================================================================================================================
 Profile view change video 8 - 1.25 min 
-  HOME -> User Management Settings -> Enhanced Profile User Interface -> enable it ===> because of this step you can configure easily below steps
+   HOME -> User Management Settings -> Enhanced Profile User Interface -> enable it ===> because of this step you can configure easily below steps
 
+ Enhanced Profile User Interface (Enhanced Profile UI) is a Salesforce setting that improves how you view and manage profiles and permissions.
+ 👉 It is a modern, detailed interface for managing:
+     Object permissions, Field permissions, User permissions, App permissions, System permissions, Tab settings, Login hours/IP restrictions.
+-----------------------------------------------------------------------------------------------------------------------------------
 Field‑Level permissions (video 8 - 1.48min)
-  uncheck below permission in System Permissions before setting the field-level permission if it is already selected in your profile
-Home -> profile -> your custom profile -> System Permissions -> Edit Read Only Fields -> uncheck   
-
-If user is not able to see the developer console how can he get it (video 8 - 1.57min)
+      The “Edit Read Only Fields” system permission allows users to modify fields that are normally read-only.
+            Read-only fields are fields that users normally cannot edit, such as:
+                System fields:Created By, Created Date, Last Modified By, Last Modified Date
+        Fields marked Read-Only in: Page Layout
+            Field-Level Security (FLS)
+  Home -> profile -> your custom profile -> System Permissions -> Edit Read Only Fields -> uncheck   
+-----------------------------------------------------------------------------------------------------------------------------------
+Record Level Access (video 8 - 1.57min) In Salesforce, “View All” is a powerful System Permission that gives a user full read access to all records of a specific object,
+ regardless of sharing rules.
+    
     Home -> profile -> your custom profile -> System Permissions -> View All Data -> checkbox should checked -> you will get developer console
+    
+       In Salesforce, “View All” is a powerful System Permission that gives a user full read access to all records of a specific object, regardless of sharing rules.
+            Ignores: Organization-Wide Defaults (OWD), Sharing rules, Role hierarchy,
+                ✅ But:
+                It is READ-ONLY access
 
+-----------------------------------------------------------------------------------------------------------------------------------
 Inside developer console if user wants to remove apex control in developer console  (video 8 - 1.59min)
    Home -> profile -> your custom profile -> System Permissions -> Author Apex -> checkbox should not checked -> you will not get apex control in developer console
-
+-----------------------------------------------------------------------------------------------------------------------------------
 
 Salesforce Security Model (video 9 - 55.54 seconds)
-            Salesforce uses a layered security model to control data access at different levels:
-            *   Organization-Wide Defaults (OWD) (sharing setting in setup): Baseline access (Private, Public Read Only, Public Read/Write).
-            *   Role Hierarchy :  Users higher in hierarchy inherit access to subordinates’ records.
-            *   Sharing Rules:  (if object has private OWD then you get sharing rules, setup => sharing setting => object name Sharing Rules) 
-                                Open up access based on criteria or ownership.
-            *   Manual Sharing: Record owner shares specific records.
-            *   Teams: Account, Opportunity, Case teams for collaborative access.
-            *   Apex Managed Sharing: Programmatic sharing for custom logic.\
 
 1.Organization Level Security in Salesforce controls who can log in and from where. 
-  It mainly includes Password Policies, Login IP Ranges, Login Hours, and Network Access.
+     It mainly includes Password Policies, Login IP Ranges, Login Hours, and Network Access.
 2.Object-Level Security(OLS) (CRUD)  
   Controls access to entire objects like Account, Contact, Opportunity.  
   Managed through Profiles and Permission Sets.  
@@ -567,6 +697,17 @@ Is permissoin set override the profile permissions
       Permission Sets can add extra permissions on top of what the Profile provides.
       Permission Sets cannot remove or reduce permissions granted by a Profile.
 
+🔇 What is Muting Permission?
+✅ You remove or disable specific permissions from a Permission Set Group without editing the original permission sets
+    You have:
+        Permission Set 1 → gives Read + Edit access to Account
+        Permission Set 2 → gives Delete access to Account
+        You combine both into a Permission Set Group
+        👉 But now: You want users to:
+            ✅ Read & Edit Accounts
+            ❌ NOT Delete Accounts
+        ➡️ Solution: Use Muting Permission Set
+        create muting permission set → select the permissions you want to mute (e.g., Delete on Account) → assign muting permission set to the group        
 ==========================================================================================================================================================================================
 validation rule (video 10- 22 min)
 
@@ -594,8 +735,9 @@ example -  Prevent changing Status from Approved to anything else:
 In Salesforce Apex, the default access modifier depends on what you are defining: (video 12)
 
 Classes → Default: public (namespace-level)
-This means if you do not explicitly specify public, private, or global, the class is accessible to all Apex code in the same namespace
+    This means if you do not explicitly specify public, private, or global, the class is accessible to all Apex code in the same namespace
     but not outside the namespace (e.g., not exposed to other packages or external systems).
+
 Methods/Variables → Default: private
    Meaning they are accessible only within the same class.
 
@@ -603,23 +745,18 @@ every time we should follow same Syntax for declaring variable (video 12 time 10
        access modifier => data type => variable name 
        example public string name ="jayendra"
   
-      public class MyClass {
-          
+      public class MyClass {          
           // Instance variable
-          public String message;
-
+        public String message;
           // Constructor
-          public MyClass(String msg) {
-              message = msg;
-          }
-
+            public MyClass(String msg) {
+                message = msg;
+            }
           // Method to display message
-          public void showMessage() {
-              System.debug('Message: ' + message);
-          }
+            public void showMessage() {
+                System.debug('Message: ' + message);
+            }
       }
-
-
 ==========================================================================================================================================================================================
 Field Data Types 
 Text: Stores alphanumeric characters up to a specified length.
@@ -670,44 +807,66 @@ In classic mode
   Example: Contact linked to Account (but can exist independently). 
   **Important**==>   How many lookup relationship can create in one object ==> No fixed limit
 
-✅ 2. Master-Detail Relationship
+✅ 2. External Lookup & Indirect Lookup
+  Description: Used to link external objects (from external systems) to Salesforce objects.
+  Key Points:
+      External Lookup links external object to standard/custom object.
+      Indirect Lookup links external object to Salesforce object using an external ID.
+
+✅ 3. Master-Detail Relationship
   Description: A strong parent-child relationship.
   Key Points:
     Child record cannot exist without parent.
     Parent controls ownership, sharing, and deletion.
     Supports roll-up summary fields on the master.
-  Example: Invoice Line Items tied to Invoice.
+  
+  Example: Opportunity linked to Account (Opportunity cannot exist without an Account).
  **Important**==>  How many master detail relationship can create in one object ==> 2 
 
-✅ 3. Many-to-Many Relationship
+✅ 4. Many-to-Many Relationship
   Description: Achieved using a junction object with two master-detail relationships. we can reduce duplicate records with help of this
   Super Simple Example
             You have Students
             You have Courses
         One student can join many courses.
         One course can have many students.
-
-    To connect them, we create a new object:
-    👉 Enrollment (this becomes the junction object)
-
-
   Key Points:
     Allows linking multiple records from two objects.
-    Example: Students and Courses.
+    Example: A student can enroll in multiple courses, and a course can have multiple students.
     **Important**==>  Combined (lookup + master-detail) 40 (default) up to 50 (max)
 
-✅ 4. Hierarchical Relationship:
-    A special relationship available only in the User object. It allows one user to be related to another (for example, manager to employee).
+            (Master-Detail)            (Master-Detail)
+        STUDENT(S1,Rahul)  ─────────────┐      ┌─────────────  COURSE (C1, Math)
+                                        │      │
+                                        │      │
+                                        ▼      ▼
+                        ENROLLMENT (Junction Object)
+                            E1 Rahul Math
+                            E2 Ravi Science
+                            E3 Anjali Physics
 
-✅ 5.Self Relationship
+                            delete Ravi
+                            then delete E2 record from enrollment object and course and student record will not delete
+                            E1 and E3 record will remain but relationship will be removed
+✅ 5. Hierarchical Relationship:
+       A special relationship available only in the User object. It allows one user to be related to another (for example, manager to employee).
+       Go to Fields & Relationships -> Click New -> Select Hierarchical Relationship -> Click Next -> Field Label: Manager Select the related user
+✅ 6. Self Relationship
     A Lookup relationship where an object relates to itself.
         Key Features:
         Used to create hierarchical relationships within the same object.
-        Example:
-        Account → Parent Account
-        User → Manager (User object)
+       Example - Account (Tata Group)
+                    │
+        -------------------------
+        │                       │
+ Account (Tata Motors)     Account (TCS)
+        │
+   -----------------
+   │               │
+Account        Account
+(Pune)         (Mumbai)
 ===========================================================================================================================================================================================
-Delete Behavior
+Delete Behavior of Junction Records in Many-to-Many Relationship
     junction records can delete from both the parents Student and Events
         Because the junction object uses Master-Detail relationships, its records are dependent on both parents.
         If either parent record is deleted, all related junction records are automatically deleted (cascade delete).
@@ -746,79 +905,74 @@ This creates a **Many-to-Many relationship**.
         | SS2       | S1      | SUB2    |
  
 # 1️⃣ Insert Behavior (Interview Answer)
-When inserting a **Junction Object record**, **both master records must exist**.
-### Example Data
-            Now insert into **Student_Subject** (junciton object):
-            Meaning: Ravi is taking Math and Science.
-            ```
-            Ravi → Math
-            Ravi → Science
-            ```
-        | Record_ID | Student | Subject |
-        | --------- | ------- | ------- |
-        | SS1       | S1      | SUB1    |
-        | SS2       | S1      | SUB2    |
-✔ Insert rule
-        ```
-        Student_Subject must contain:
-        Student_ID
-        Subject_ID
-        ```
-If either is missing → **Record cannot be created** ❌
+            When inserting a **Junction Object record**, **both master records must exist**.
+            ### Example Data
+                        Now insert into **Student_Subject** (junction object):
+                        Meaning: Ravi is taking Math and Science.
+                        ```
+                        Ravi → Math
+                        Ravi → Science
+                        ```
+                    | Record_ID | Student | Subject |
+                    | --------- | ------- | ------- |
+                    | SS1       | S1      | SUB1    |
+                    | SS2       | S1      | SUB2    |
+            ✔ Insert rule
+                    ```
+                    Student_Subject must contain:
+                    Student_ID
+                    Subject_ID
+                    ```
+            If either is missing → **Record cannot be created** ❌
 ---
 # 2️⃣ Delete Behavior (Cascade Delete)
-### Case 1 — Delete Student
-Delete **Student S1 (Ravi)**
-Before:
-    | Student | Subject | Student_Subject |
-    | ------- | ------- | --------------- |
-    | S1      | Math    | SS1             |
-    | S1      | Science | SS2             |
+                ### Case 1 — Delete Student
+                    Delete **Student S1 (Ravi)**
+                    Before:
+                        | Student | Subject | Student_Subject |
+                        | ------- | ------- | --------------- |
+                        | S1      | Math    | SS1             |
+                        | S1      | Science | SS2             |
 
-    After deleting **S1**:
-    | Student | Subject | Student_Subject |
-    | ------- | ------- | --------------- |
-    | Deleted | Math    | Deleted         |
-    | Deleted | Science | Deleted         |
+                    After deleting **S1**:
+                    | Student | Subject | Student_Subject |
+                    | ------- | ------- | --------------- |
+                    | Deleted | Math    | Deleted         |
+                    | Deleted | Science | Deleted         |
 
-✔ All related **junction records deleted automatically**
-Subjects remain.
+                ✔ All related **junction records deleted automatically**
+                Subjects remain.
 ---
 ### Case 2 — Delete Subject
-    Delete **Subject Math**
-    Before
-    | Student | Subject | Student_Subject |
-    | ------- | ------- | --------------- |
-    | Ravi    | Math    | SS1             |
-    After
-    | Student | Subject | Student_Subject |
-    | ------- | ------- | --------------- |
-    | Ravi    | Deleted | Deleted         |
+                    Delete **Subject Math**
+                    Before
+                    | Student | Subject | Student_Subject |
+                    | ------- | ------- | --------------- |
+                    | Ravi    | Math    | SS1             |
+                    After
+                    | Student | Subject | Student_Subject |
+                    | ------- | ------- | --------------- |
+                    | Ravi    | Deleted | Deleted         |
 
-✔ Junction record removed automatically.
-Student remains.
+                ✔ Junction record removed automatically.
+                Student remains.
 ---
 # Case 3 — Delete Junction Record
-        Delete **SS1**
-        Before
-        ```
-        Ravi → Math
-        ```
-        After
-        ```
-        Ravi   Math
-        (No relationship)
-        ```
-        ✔ Student and Subject **still exist**
-        ✔ Only **relationship removed**
+            Delete **SS1**
+            Before
+            ```
+            Ravi → Math
+            ```
+            After
+            ```
+            Ravi   Math
+            (No relationship)
+            ```
+            ✔ Student and Subject **still exist**
+            ✔ Only **relationship removed**
 
 Security control :- can have first have first parernt object (in this cases student object bacuase we have event lookup)
 
-✅ 6. External Lookup & Indirect Lookup
-  Description: Used to link external objects (from external systems) to Salesforce objects.
-  Key Points:
-  External Lookup links external object to standard/custom object.
-  Indirect Lookup links external object to Salesforce object using an external ID.
 
 ==========================================================================================================================================================================================
  **Important**==>  why if Account record deleted then contact and oppportunites deleting?
@@ -855,7 +1009,6 @@ administrators and developers design, visualize,and manage the data model (objec
 making it easier to understand complex data structures and build new custom elements without writing code.
 
 abs ==> you can get new tab with objects
-
 
 lookup relationship - create a relationship to connects two objects loosely, allowing a child record to point to a parent record
  (like an Account to a Contact, or a custom object to a User) for data sharing, but the child can exist independently.
@@ -927,7 +1080,7 @@ Lightning App Builder – Component Types (Day 6 video after 1:08 min)
 
 1️⃣ Standard Components (Salesforce‑built)
    These come out of the box with Salesforce.
-     Examples -  Tabs,Dashboard,List View,Flow,Related Lists,Highlights Panel,Activities,Record Detail,Related Record,Path
+     Examples -  Tabs ,Dashboard, List View,Flow,Related Lists,Highlights Panel,Activities,Record Detail,Related Record,Path
 2️⃣ Custom Components (LWC / Aura)
     These are components created by developers.
       Types include:
@@ -994,11 +1147,8 @@ uncheck below permission in System Permissions before setting the field-level pe
 Home -> profile -> your custom profile -> System Permissions -> Edit Read Only Fields -> uncheck
 ==========================================================================================================================================================================================
 What Are Permission Sets in Salesforce?
-
     created in free org - Contact Permission set, Decrpypt permission set, Delete account permission,Case permission set
-
     assigned permission set can be checked thourgh users, each user can have multiple permission sets
-
     A Permission Set is a collection of settings and permissions that give users additional access on top of their Profile.
     Think of it as:
     👉 Profile = Base access
@@ -1022,19 +1172,19 @@ You use them when:
     You want to remove overlapping permissions using Muting        
 ==========================================================================================================================================================================================
 Rename Tabs and Labels (video 9) 12.55 seconds
-
- What is a Permission Set Group? (video 9) 21.34 seconds
-
+  What is a Permission Set Group? (video 9) 21.34 seconds
 A Permission Set Group bundles multiple Permission Sets together.
    You can assign the group to a user instead of assigning multiple individual permission sets.
    It supports Muting Permissions, which allows you to remove specific permissions from the group without editing the original permission sets.
 
 Muting Permission Set (video 9) 36.28 seconds
-     A Muting Permission Set is linked to a Permission Set Group.
-     It allows you to mute (disable) specific permissions from the group without changing the original permission sets.
+    A Muting Permission Set is linked to a Permission Set Group.
+    It allows you to mute (disable) specific permissions from the group without changing the original permission sets.
+    
      Muting only removes permissions that come from Permission Sets inside that specific PSG(Permission Set Group).
-    It does not mute permissions coming from the Profile, other Permission Sets, or other PSGs.
-    Also, muting cannot grant permissions, it will only remove them.
+IMP  It does not mute permissions coming from the Profile, other Permission Sets, or other PSGs.
+
+IMP  Also, muting cannot grant permissions, it will only remove them.
     Example: If a group includes “Delete” permission but you want to restrict it for certain users, you can mute “Delete” in the muting permission set.
 ==========================================================================================================================================================================================
 Record Level Security (RLS)  (video 9) 40.02 seconds
@@ -1049,10 +1199,10 @@ What is OWD (video 9 53.50 seconds)
       OWD (Organization-Wide Defaults) in Salesforce is the baseline level of access that all users have to records in your organization for each object.
       It’s part of Record-Level Security and determines how restrictive or open your data is by default.
 
-================================================================================Sandbox configureed==================================================================================================================================
+================================================================================Sandbox configured==================================================================================================================================
 Key Permissions That Cause issue, below permission should be false
 
-    Profile → Object Settings → Choose Object → Edit
+IMP  Profile → Object Settings → Choose Object → Edit
         View All (object-level): Grants read access to all records of that object.
         Modify All (object-level): Grants full access to all records of that object.
 
@@ -1392,14 +1542,15 @@ An Apex class in Salesforce can contain the following components:
 In short: An Apex class can contain variables, constructors, methods, properties, inner classes, static blocks, interface implementations, and custom exceptions.
 
 ==========================================================================================================================================================================================
-What is an Exception in Apex? video 13 A (10.05 min)
+IMP What is an Exception in Apex? video 13 A (10.05 min)
 An exception represents an error that disrupts normal flow. In Apex:
         All exceptions derive from Exception (base class).
         They’re unchecked (no throws declaration needed).
         You handle them with try { } catch (ExceptionType e) { } finally { }.
         Some (notably LimitException) cannot be caught.
 
-
+Acryonym : SQLCDN
+       
 1) SObjectException - Accessing fields not present in the queried sObject or invalid operations.
         try {
             // Name not selected – accessing it throws SObjectException
@@ -1409,17 +1560,7 @@ An exception represents an error that disrupts normal flow. In Apex:
             System.debug('SObject field access issue: ' + e.getMessage());
         }
 
-2) DmlException
-        Thrown on failed DML (insert/update/delete) when not using Database.* methods. 
-        try {
-            Account a = new Account(); // Missing required Name
-            insert a;
-        } catch (DmlException e) {
-            System.debug('DML failed: ' + e.getMessage());
-            System.debug(e.getDmlFieldNames(0)); // which fields failed on first record
-        }
-
-3) QueryException
+2) QueryException
 Thrown by SOQL/SOSL issues (e.g., query returns no rows with querySingleResult or invalid relationship).
             try {
                 // Will throw if no record matches
@@ -1427,15 +1568,6 @@ Thrown by SOQL/SOSL issues (e.g., query returns no rows with querySingleResult o
             } catch (QueryException e) {
                 System.debug('Query error: ' + e.getMessage());
             }
-
-4) NullPointerException - Dereferencing a null variable.
-        Account a; // null
-        try {
-            String s = a.Name; // boom
-        } catch (NullPointerException e) {
-            System.debug('Null reference: ' + e.getMessage());
-        }
-
 5) ListException / StringException / TypeException / MathException   - Data-structure or math errors.
             // ListException
             try {
@@ -1450,8 +1582,8 @@ Thrown by SOQL/SOSL issues (e.g., query returns no rows with querySingleResult o
                 Decimal r = 1 / 0;
             } catch (MathException e) {
                 System.debug('Math error: ' + e.getMessage());
-            }
-6) CalloutException - Issues during HTTP callouts (timeouts, unpermitted callouts). 
+            }            
+4) CalloutException - Issues during HTTP callouts (timeouts, unpermitted callouts). 
         try {
             HttpRequest req = new HttpRequest();
             req.setEndpoint('https://example.com');
@@ -1461,6 +1593,24 @@ Thrown by SOQL/SOSL issues (e.g., query returns no rows with querySingleResult o
         } catch (CalloutException e) {
             System.debug('Callout failed: ' + e.getMessage());
         }
+                   
+5) DmlException
+        Thrown on failed DML (insert/update/delete) when not using Database.* methods. 
+        try {
+            Account a = new Account(); // Missing required Name
+            insert a;
+        } catch (DmlException e) {
+            System.debug('DML failed: ' + e.getMessage());
+            System.debug(e.getDmlFieldNames(0)); // which fields failed on first record
+        }
+6) NullPointerException - Dereferencing a null variable.
+        Account a; // null
+        try {
+            String s = a.Name; // boom
+        } catch (NullPointerException e) {
+            System.debug('Null reference: ' + e.getMessage());
+        }
+
 7) JSONException / XmlException / RegexException
         // JSONException
         try {
@@ -1507,7 +1657,7 @@ Create your own types by extending Exception to make error handling explicit and
         }
 
 ==========================================================================================================================================================================================
-LIST CLASS IN SALESFORCE (APEX)
+IMP LIST CLASS IN SALESFORCE (APEX)
         A List in Apex is an ordered collection of elements.
         It is similar to an array but more flexible.
    
@@ -1564,13 +1714,12 @@ LIST IN LOOPS
 ==========================================================================================================================================================================================
 Gettter and setter methods
 public class getterSetterClass {
-
     // Property with auto getter & setter
     public String studentName { get; set; }
 
  // private variable used by getter/setter
      private Integer studentAge;
-    
+   
     // Custom getter
     public String greeting {
         get {

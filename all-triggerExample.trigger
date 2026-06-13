@@ -2,8 +2,35 @@
 // Undelete → treated like insert → no oldMap
 // Update → has previous values → oldMap is available
 // Delete → record is being removed → oldMap available
+================================================================================================================================================================
+prevent duplicate contact with same email under same account
+    trigger ContactTrigger on Contact (before insert, before update) {
+    Set<String> emails = new Set<String>();
+    for(Contact con : Trigger.new){
+        if(con.Email != null){
+            emails.add(con.Email);
+        }
+    }
+    
+    Map<String, Contact> existingContacts = new Map<String, Contact>();
+    
+    for(Contact c : [
+        SELECT Id, Email, AccountId
+        FROM Contact
+        WHERE Email IN :emails
+    ]){
+        existingContacts.put(c.Email + c.AccountId, c);
+    }
 
+    for(Contact con : Trigger.new){
+        String key = con.Email + con.AccountId;
+        if(existingContacts.containsKey(key)){
+            con.addError('Duplicate Contact Email found for this Account');
+        }
+    }
 
+    }
+================================================================================================================================================================
 //containsKey()
 //get()
 //trigger to update  field on Account when Case is inserted, updated, deleted, or undeleted
@@ -12,8 +39,10 @@ trigger CaseTrigger on Case(after insert, after update, after delete, after unde
     Set<Id> acctIds = new Set<Id>();
     if (Trigger.isInsert || Trigger.isUpdate || Trigger.isUndelete)
         for (Case c : Trigger.new) if (c.AccountId != null) acctIds.add(c.AccountId);
+        
     if (Trigger.isUpdate || Trigger.isDelete)
         for (Case c : Trigger.old) if (c.AccountId != null) acctIds.add(c.AccountId);
+    
     if (acctIds.isEmpty()) return;
     
     Map<Id, Integer> counts = new Map<Id, Integer>();
@@ -74,29 +103,44 @@ trigger CreateTaskOnClosedWon on Opportunity (after update){
  8️⃣ Update Contact Industry When Account Industry Changes
  Trigger (after update)
 
-trigger SyncIndustry on Account (after update){
+trigger UpdateContactIndustry on Account (after update) {
 
-    Set<Id> changedAccountIds = new Set<Id>();
+    trigger accountTrigger on Account (after update) {
 
-    for(Account acc : Trigger.new){
-        if(acc.Industry != Trigger.oldMap.get(acc.Id).Industry){
-            changedAccountIds.add(acc.Id);
+    Map<Id, String> accountIdsMap = new Map<Id, String>();
+
+    // Find accounts where Industry changed
+    for (Account ac : Trigger.new) {
+        String oldIndustry = Trigger.oldMap.get(ac.Id).Industry;
+
+        if (ac.Industry != oldIndustry) {
+            accountIdsMap.put(ac.Id, ac.Industry);
         }
     }
 
-    List<Contact> contactsToUpdate = [
-        SELECT Id, Industry__c, Account.Industry
+    if (accountIdsMap.isEmpty()) return;
+
+    // Fetch related contacts
+    List<Contact> contacts = [
+        SELECT Id, AccountId
         FROM Contact
-        WHERE AccountId IN :changedAccountIds
+        WHERE AccountId IN :accountIdsMap.keySet()
     ];
 
-    for(Contact con : contactsToUpdate){
-        con.Industry__c = con.Account.Industry;
+    List<Contact> updateList = new List<Contact>();
+
+    for (Contact con : contacts) {
+        updateList.add(new Contact(
+            Id = con.Id,
+            Industry__c = accountIdsMap.get(con.AccountId)
+        ));
     }
 
-    update contactsToUpdate;
+    // Update once (bulk-safe)
+    if (!updateList.isEmpty()) {
+        update updateList;
+    }
 }
-
 
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  9️⃣ Prevent Account Insert Without Website
@@ -123,40 +167,6 @@ trigger UpdateAccountType on Account (before insert, before update){
     }
 }
 
-================================================================================================================================================================================================            
-// Example: Update Contact Phone on Account Phone change (reference only)
-trigger UpdateContactPhoneOnAccount on Account (after update) {
-    // Map to hold Accounts where phone number changed
-    Map<Id, String> updatedPhoneMap = new Map<Id, String>();
-    // Check which Accounts have changed Phone
-    for (Account acc : Trigger.new) {
-        Account oldAcc = Trigger.oldMap.get(acc.Id);
-        if (acc.Phone != oldAcc.Phone) {
-            updatedPhoneMap.put(acc.Id, acc.Phone);
-        }
-    }
-
-    // If no phone changed, exit
-    if (updatedPhoneMap.isEmpty()) {
-        return;
-    }
-
-    // Fetch related contacts
-    List<Contact> contactsToUpdate = [
-        SELECT Id, Phone, AccountId
-        FROM Contact
-        WHERE AccountId IN :updatedPhoneMap.keySet()
-    ];
-
-    // Update contacts with new Account phone
-    for (Contact con : contactsToUpdate) {
-        con.Phone = updatedPhoneMap.get(con.AccountId);
-    }
-
-    if (!contactsToUpdate.isEmpty()) {
-        update contactsToUpdate;
-    }
-}
 
 ================================================================================================================================================================================================
  1️⃣ Prevent Deleting Account with Opportunities
@@ -189,16 +199,16 @@ trigger PreventAccountDelete on Account (before delete) {
 ================================================================================================================================================================================================
  2️⃣ Auto Create Contact After Account Insert
  Scenario - Automatically create a default Contact when an `Account` is created.
- Trigger (after insert) trigger CreateContactAfterAccount on Account (after insert){
-    List<Contact> contactsToInsert = new List<Contact>();
-    for(Account acc : Trigger.new){
-        contactsToInsert.add(new Contact(
-            LastName = acc.Name + ' Contact',
-            AccountId = acc.Id
-        ));
+    Trigger (after insert) trigger CreateContactAfterAccount on Account (after insert){
+        List<Contact> contactsToInsert = new List<Contact>();
+        for(Account acc : Trigger.new){
+            contactsToInsert.add(new Contact(
+                LastName = acc.Name + ' Contact',
+                AccountId = acc.Id
+            ));
+        }
+        insert contactsToInsert;
     }
-    insert contactsToInsert;
-}
 ================================================================================================================================================================================================
  3️⃣ Prevent Stage Change Without Reason
  Scenario

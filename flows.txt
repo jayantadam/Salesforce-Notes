@@ -1,4 +1,53 @@
-               
+IMP - In LWC we can call only screen flow but not autolaunched flow.
+example - we have a screen flow which has a screen and then it calls an autolaunched flow to do some processing. In this case, we can call the screen flow from LWC, but we cannot directly call the autolaunched flow from LWC.
+
+
+<template>
+    <lightning-card title="Call Screen Flow">
+        <lightning-button 
+            label="Start Flow" 
+            onclick={handleStart}>
+        </lightning-button>
+
+        <lightning-flow 
+            onstatuschange={handleStatusChange}>
+        </lightning-flow>
+        <p if:true={flowResult}>
+            Result: {flowResult}
+        </p>
+    </lightning-card>
+</template>
+
+
+import { LightningElement } from 'lwc';
+export default class FlowCaller extends LightningElement {
+    flowResult;
+    handleStart() {
+        const flow = this.template.querySelector('lightning-flow');
+        const inputVariables = [
+            {
+                name: 'recordId',
+                type: 'String',
+                value: '001XXXXXXXXXXXX'
+            }
+        ];
+        flow.startFlow('My_Screen_Flow', inputVariables);
+    }
+
+    handleStatusChange(event) {
+        if (event.detail.status === 'FINISHED') {
+            const outputVars = event.detail.outputVariables;
+            outputVars.forEach(item => {
+                if (item.name === 'resultMessage') {
+                    this.flowResult = item.value;
+                }
+            });
+            console.log('Flow finished');
+        }
+    }
+}
+
+
 1.  Record trogger flow - Account object number of contact update
 
     Layout - Auto Layout
@@ -17,10 +66,13 @@
      | Debugging complex   | Visual debug   |
 
 
-2. screen flow 
+2. Screen flow 
     flow name - Opportunity Flow version 2
     https://www.youtube.com/watch?v=CyxvmhNLCa8
-
+     - Wizard-Based Record Creation (Multi-Step) (Complex object creation requiring multiple steps)
+     - Data Correction / Admin Utility Tool (Admins create internal tools using screen flow)
+     - Conditional Navigation / Decision-Based Logic (if salary matches then continue next steps else end the flow)
+     - 🔷 4. Bulk Record Processing (User-Driven)
 
 3️⃣ Scheduled-Triggered Flow
 What it does:
@@ -32,7 +84,6 @@ Used for:
     Mass updates
 
 5️⃣ Platform Event-Triggered Flow
-
 What it does:
   Runs when a Platform Event is received
 Used for:

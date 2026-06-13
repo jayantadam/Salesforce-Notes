@@ -25,6 +25,7 @@ trigger OpportunityLineItemTrigger on OpportunityLineItem (
         OpportunityLineItemTriggerHandler.updateOppCountsAndLastCreated(oppIds);
     }
 }
+
 // Handler class must be placed in force-app/main/default/classes/OpportunityLineItemTriggerHandler.cls
 
 public with sharing class OpportunityLineItemTriggerHandler {

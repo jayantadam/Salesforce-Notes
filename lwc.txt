@@ -1,5 +1,6 @@
 FIND - Acryonym
 
+
 LWC was introduced in 2018 as a developer preview and became generally available in 2019 with the Spring ’19 release.”
 what is visual force
 Visualforce is a component-based user interface framework from [Salesforce] used to build custom pages and applications on the Salesforce platform.
@@ -201,6 +202,92 @@ lwc → visualforce = contentWindow.postMessage()
 visualforce → lwc = window.parent.postMessage()
 
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+What is Lightning Navigation Service and how to use it in LWC?
+    In LWC (Lightning Web Components), the Lightning Navigation Service (NavigationMixin) is used to navigate to different pages like records, 
+    list views, URLs, apps, etc.
+        It allows your components to navigate users to different Salesforce pages without manually constructing URLs.
+        Instead of hardcoding links, you define a Page Reference object, and the service handles navigation for you.
+
+Navigation is based on a PageReference object, which describes:
+    type → The type of page (record page, object page, web page, etc.)
+    attributes → Required fields (like recordId, objectApiName)
+    state → Optional query parameters
+
+IMP
+    import { LightningElement } from 'lwc';
+    import {getrecord, createRecord, updateRecord} from 'lightning/uiRecordApi';
+    import {publish, subscribe, MessageContext} from 'lightning/messageService';
+    import { NavigationMixin } from 'lightning/navigation';
+    import SAMPLE_CHANNEL from '@salesforce/messageChannel/SampleChannel__c';
+    import momentLib from '@salesforce/resourceUrl/momentJS';
+    import {getAccounts} from '@salesforce/apex/AccountController.getAccounts';
+    import { refreshApex } from '@salesforce/apex';
+export default class ExternalUrlViewer extends NavigationMixin(LightningElement) {
+
+// 👉 Open Existing Account Record
+    openAccount() {
+        this[NavigationMixin.Navigate]({
+            type: 'standard__recordPage',
+            attributes: {
+                recordId: '001XXXXXXXXXXXX', // replace with real Id
+                objectApiName: 'Account',
+                actionName: 'view'
+            }
+        });
+    }
+
+
+// 👉 Create New Account
+    createAccount() {
+        this[NavigationMixin.Navigate]({
+            type: 'standard__objectPage',
+            attributes: {
+                objectApiName: 'Account',
+                actionName: 'new'
+            }
+        });
+    }
+}
+
+// 👉 Open External URL
+    openGoogle() {
+        this[NavigationMixin.Navigate]({
+            type: 'standard__webPage',
+            attributes: {
+                url: 'https://www.google.com'
+            }
+        });
+    }
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Go to Setup → Static Resources
+    Upload file
+    Name it: momentJS
+import { LightningElement } from 'lwc';
+import momentLib from '@salesforce/resourceUrl/momentJS';
+import { loadScript } from 'lightning/platformResourceLoader';
+    //Use moment() globally
+
+export default class ExampleMoment extends LightningElement {
+    renderedCallback() {
+        loadScript(this, momentLib)
+            .then(() => {
+                this.initializeMoment();
+            })
+            .catch(error => {
+                console.error('Error loading Moment.js', error);
+            });
+    }
+
+    initializeMoment() {
+        // moment is available globally after loadScript
+        const now = moment();
+        console.log('Current Time:', now.format('YYYY-MM-DD HH:mm:ss'));
+
+        const formattedDate = moment('2026-06-05').format('DD MMM YYYY');
+        console.log('Formatted Date:', formattedDate);
+    }
+}
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 Here’s a **clean table format** comparison of **Aura Components vs Salesforce Lightning Web Components (LWC)** 👇
  Acryonym: TPDSSR
  ac
@@ -262,7 +349,7 @@ remember the Acryonym DIMCAPS for a systematic debugging approach.
 | **P**  | Permissions | FLS, object access, Apex access    |
 | **S**  | Syntax      | HTML/JS syntax issues              |
 ---------------------------------------------------------------------------------------------------------------------------------------------
-Acryonym for LWC properties - PPRTGW
+Acryonym for LWC properties - PPRT
 
 In **Salesforce Lightning Web Components (LWC)**, *properties* are variables used to store data and control how components behave and communicate.
 They are a core part of building dynamic UI in Salesforce.
@@ -285,7 +372,7 @@ They are a core part of building dynamic UI in Salesforce.
     <c-child-component message="Hello"></c-child-component>
     ```
 ---------------------------------------------------------------------------------------------------------------------------------------------
-## 2. Private Properties
+## 2. Private Properties (primitive datatype - string, number, boolean)
     * Default properties (no decorator)
     * Used **within the component only**
     * Not accessible outside
@@ -300,19 +387,41 @@ name = "Salesforce";
     * Earlier, `@track` was used
     1. Primitive types(string, number, boolean) are reactive by default.
     2. Objects and arrays are reactive when:
-    - You reassign the entire object/array reference. example - ```js this.obj = { ...this.obj, name: 'alex' }```
-    - Or use `@track` for deep reactivity (less common now).
+            - You reassign the entire object/array reference. example - ```js this.obj = { ...this.obj, name: 'alex' }```
+            - Or use `@track` for deep reactivity (less common now).
     3. Getters are reactive when they depend on reactive properties.
-    4. Wire properties are reactive when their parameters change.
-    5. Template expressions are reactive when they reference reactive properties.
-    6. Event handlers can trigger reactivity when they update reactive properties.  
-```js
- count = 0;
+                ```js
+            name = 'World';
+            get greeting() {
+                return 'Hello ' + this.name;
+            }
+            set name(value) {
+                this.name = value.toUpperCase();
+            }
+            ```html
+            <p>{greeting}</p>  ```
 
-handleClick() {
-    this.count++; // UI updates automatically
-}
-```
+    4. Wire properties are reactive when their parameters change.
+             ```js
+            import { LightningElement, wire } from 'lwc';
+            import getContacts from '@salesforce/apex/ContactController.getContacts';
+            export default class ContactList extends LightningElement {
+               @wire(getRecord, { recordId: '$recordId', fields: FIELDS })
+            }
+            ```
+    5. Template expressions are reactive when they reference reactive properties.
+        ```html
+        <template>
+            <p lwc:if={greeting}>{greeting}</p>
+            </template>
+        ```
+    6. Event handlers can trigger reactivity when they update reactive properties.  
+        ```js
+        count = 0;
+        handleClick() {
+            this.count++; // UI updates automatically
+        }
+        ```
 ------------------------------------------------------------------------------------------------------------------------------------------------
 ## 4. Tracked Properties (`@track`) *(less commonly needed now)*
 * Used for **deep reactivity in objects/arrays**
@@ -328,64 +437,34 @@ import { track } from 'lwc';
 this.user.age = 26;
 ```
 ---------------------------------------------------------------------------------------------------------------------------------------------
-## 5. Getter & Setter Properties
-
-* Used to compute values dynamically
-* Called automatically when referenced in template
-
-```js
-name = 'World';
-get greeting() {
-    return 'Hello ' + this.name;
-}
-set name(value) {
-    this.name = value.toUpperCase();
-}
-```
-```html
-<p>{greeting}</p>
-```
----------------------------------------------------------------------------------------------------------------------------------------------
-6. Wire Properties (`@wire`)
-* Used to connect to Salesforce data (Apex or LDS)
-```js
-import { LightningElement, wire } from 'lwc';
-import getContacts from '@salesforce/apex/ContactController.getContacts';
-export default class ContactList extends LightningElement {
-    @wire(getContacts) contacts;
-}
-```
----------------------------------------------------------------------------------------------------------------------------------------------
 ## 🔹 Key Characteristics of LWC Properties
-### ✅ Reactive
-  * Changes automatically reflect in UI
-### 🔄 One-way Data Binding
-  * Data flows **JavaScript → HTML template**
-### 🔗 Component Communication
-  * `@api` enables **parent → child communication**
-### ⚡ Efficient Rendering
-  * Only updates parts of DOM that changed
-### 🔒 Encapsulation
-  * Private properties are hidden from other components
----
+        ### ✅ Reactive
+        * Changes automatically reflect in UI
+        ### 🔄 One-way Data Binding
+        * Data flows **JavaScript → HTML template**
+        ### 🔗 Component Communication
+        * `@api` enables **parent → child communication**
+        ### ⚡ Efficient Rendering
+        * Only updates parts of DOM that changed
+        ### 🔒 Encapsulation
+        * Private properties are hidden from other components
+        ---
+            ## 🔹 Example (Simple LWC)
+            ```js
+            import { LightningElement, api } from 'lwc';
+            export default class HelloWorld extends LightningElement {
+                @api name = 'World';
+                get greeting() {
+                    return `Hello, ${this.name}!`;
+                }
+            }
+            ```
 
-## 🔹 Example (Simple LWC)
-```js
-import { LightningElement, api } from 'lwc';
-export default class HelloWorld extends LightningElement {
-    @api name = 'World';
-    get greeting() {
-        return `Hello, ${this.name}!`;
-    }
-}
-```
-
-```html
-<template>
-    <p>{greeting}</p>
-</template>
-```
-
+            ```html
+            <template>
+                <p>{greeting}</p>
+            </template>
+            ```
 ---------------------------------------------------------------------------------------------------------------------------------------------
 ## 📌 Summary
 Properties in Salesforce LWC:
@@ -421,6 +500,19 @@ Important lifecycle hooks:
 * renderedCallback() – Runs after every render.
 * disconnectedCallback() – Runs when removed from DOM.
 * errorCallback(error, stack) – Handles child component errors.
+- import { LightningElement } from 'lwc';
+            export default class ChildComponent extends LightningElement {
+                connectedCallback() {
+                    // Simulate error
+                    throw new Error('Something went wrong in child');
+                }
+            }
+
+            export default class ParentComponent extends LightningElement {
+                errorCallback(error, stack) {
+                    console.error('Error in child:', error.message);
+                }
+            }
 
 In real projects, I mostly use connectedCallback for initial data load and renderedCallback carefully to avoid infinite loops.
 
@@ -511,17 +603,17 @@ handleAddAccount() {
             </template>
 </template>
 
-   <template lwc:if="data">
-      </template>
-    <template lwc:elseif="error">
-      </template>
+    <template lwc:if={data}>
+        </template>
+        <template lwc:elseif={error}>
+        </template>
     <template lwc:else>
-      </template>
-    OR
- <template if:true={accounts.data}>
-    </template>
- <template if:false={accounts.data}>
-    </template>
+     </template>
+            OR
+        <template if:true={flag}>
+            </template>
+        <template if:false={flag}>
+            </template>
    
 ----------------------------------------------------------------------------------------------------------------------------------
 Notice:
@@ -543,7 +635,6 @@ The `$` makes it a **reactive parameter**. When `accountId` changes, Apex runs a
 
 -------------------------------------------------------------------------------------------------------------------------------------
 An imperative call is a way of calling an Apex method from Lightning Web Components (LWC) explicitly (on demand) using JavaScript.
-
 You use imperative calls when:
 Key Characteristics
         ✅ The method is doing data modification (DML)
@@ -755,43 +846,45 @@ Here are the main areas you should implement.
 public with sharing class AccountController {
     @AuraEnabled(cacheable=true)
         public static List<Account> getAccounts() {      
-
         // Object-level check it will throw an error if user doesn't have access to Account object
         * `isAccessible()`- it will check if the user has access to the object
         * `isCreateable()`- it will check if the user can create records of the object
         * `isUpdateable()`- it will check if the user can update records of the object
-
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
         if (!Schema.sObjectType.Account.isAccessible()) {
-            throw new AuraHandledException('No Account access');
+              new AuthorizationException('No Account access');
         }
-
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
         * `WITH SECURITY_ENFORCED` - it will automatically check FLS and throw an error if user doesn't have access to any of the fields in the query.
-
+ it will not check object-level access, so you should still check that separately using isAccessible() or similar methods.
             // Query with FLS enforcement it will throw an error if user doesn't have access to any of the fields
-            List<Account> accs = [
-                SELECT Id, Name, AnnualRevenue
-                FROM Account
-                WITH SECURITY_ENFORCED
-            ];
-
+                    List<Account> accs = [
+                        SELECT Id, Name, AnnualRevenue
+                        FROM Account
+                        WITH SECURITY_ENFORCED
+                    ];
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
         // Extra safety layer it will remove inaccessible fields and records for field and record-level security respectively,
-         it will not throw an error but return only accessible data
+    it will not throw an error but return only accessible data
 
-        SObjectAccessDecision decision = Security.stripInaccessible(AccessType.READABLE, accs);
-        
+    SObjectAccessDecision decision = Security.stripInaccessible(AccessType.READABLE, accs);
+
            List<Account> safeRecords = (List<Account>) decision.getRecords();
            List<Account> removed = (List<Account>) decision.getRemovedFields();
-
         return safeRecords;
-
     }
 }
+
 Use:
-        * `Security.skltripInaccessible()`- it will remove inaccessible fields and records for field and record-level security respectively.
+        * `Security.stripInaccessible()`- it will remove inaccessible fields and records for field and record-level security respectively.
           AccessType options:
                     * `READABLE` - for read operations
                     * `CREATABLE` - for create operations
                     * `UPDATABLE` - for update operations
+ 👉 Behavior:
+        If object access missing → may still proceed incorrectly if not checked isAccessible() or similar methods
+        If field access missing → fields removed from results, no error thrown if using stripInaccessible
+                      
 --------------------------------------------------------------------------------------------------------------------
 # 2. Use `with sharing`
         Always use:
@@ -803,7 +896,6 @@ Use:
             * Org-wide defaults
             * Role hierarchy
             * Manual sharing
-
         Without it, users may see records they should not access.
 --------------------------------------------------------------------------------------------------------------------
 # 3. Prefer LDS Over Apex
@@ -1162,18 +1254,16 @@ From UI side:
 ---
 
 ## 10. What are limitations of LWC compared to standard web components?
-# ✅ LWC Features, Limitations & Examples
-
 # ✅ LWC Features vs Limitations vs Syntax
-   Acryonym: SECURECODE
+   Acryonym: SECU-RE-CODE
 | ✅ Feature                    | ⚠️ Limitation                           | 🔧 Syntax / Example                |
 | ---------------------------- | --------------------------------------- | ------------------------------------ |
 | Shadow DOM                   | Uses synthetic shadow, not fully native | automatic style scoping in component |
 | Event Handling               | Event retargeting restricts access      | can't use `event.target.value`       |
 | Component-Based Architecture | Cannot run outside Salesforce           | used only in LWC framework           |
 | UI API Integration           | Must rely on Salesforce APIs            | `@wire(getRecord, {...})`            |
-| Reactivity                   | No inline expressions                   | use getter → `{total}`               |
-| Encapsulation                | Limited global CSS override             | styles apply only inside component   |
+    | Reactivity                   | No inline expressions                   | use getter → `{total}`               |
+    | Encapsulation                | Limited global CSS override             | styles apply only inside component   |
 | Controlled DOM Access        | No global DOM (`document`) access       | `this.template.querySelector()`      |
 | One-Way Binding              | No two-way binding                      | `{name}` binding                     |
 | Data Security (Locker/LWS)   | Restricted browser APIs                 | no direct `window` modification      |

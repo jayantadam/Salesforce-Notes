@@ -1,0 +1,167 @@
+Named Credential
+        A secure Salesforce abstraction that stores:
+                Endpoint URL
+                Authentication details
+                Automatically injects auth headers
+        Purpose
+            Simplify callouts
+            Secure credential storage
+            Remove hardcoded secrets from Apex
+        Key Characteristics
+            Supports multiple auth types
+            Automatically handles tokens
+            No Remote Site Setting required
+            Endpoint referenced dynamically
+        Supported Authentication
+            No Auth
+            Basic Auth
+            OAuth 2.0
+            AWS Signature
+            JWT Bearer Flow
+        Example
+            HttpRequest req = new HttpRequest();
+            req.setEndpoint('callout:My_Named_Credential/data');
+            req.setMethod('GET');
+
+            ✅ No authorization header
+            ✅ No token handling
+            ✅ More secure
+
+        Side‑by‑Side Comparison (Interview Gold)
+            | Feature            | Remote Site Setting     | Named Credential                 |
+            | ------------------ | ----------------------- | -----------------------------    |
+            | Purpose            | Allow external callouts | Allow + authenticate callouts    |
+            | Stores credentials | ❌ No                    | ✅ Yes                         |
+            | Security           | Low                     | High                             |
+            | Token handling     | Manual                  | Automatic                        | 
+            | Retry / refresh    | ❌ No                    | ✅ OAuth refresh supported     |
+            | Hardcoded secrets  | ✅ Yes                   | ❌ No                          |
+            | Admin friendly     | ❌                       | ✅                             |
+            | Best practice      | ❌ Legacy                | ✅ Recommended                 |
+            ***
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------            
+
+### API Endpoint - https://api.company.com/v1/customers
+
+# ✅ ✅ Step 1: Understand Client Credentials Flow
+When Salesforce calls API:
+    1. Salesforce → Token Endpoint
+    2. Sends: client_id + client_secret
+    3. Gets:access_token
+    4. Uses token to call API
+
+✅ API Token Request (What Salesforce Does Automatically)
+        ```http
+        POST /oauth/token
+        Content-Type: application/x-www-form-urlencoded
+        grant_type=client_credentials
+        &client_id=abc123
+        &client_secret=xyz456
+        ```
+✅ API Response
+        {
+        "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
+        "token_type": "Bearer",
+        "expires_in": 3600
+        }
+
+✅ Step-by-Step Salesforce Configuration
+✅ 🔹 Step 2: Create External Credential
+            ### Go to: Setup → Named Credentials -> External Credentials → New
+            
+            ### Fill Details
+            * **Label**: `CompanyOAuth`
+            * **Authentication Protocol**:
+                    ``` OAuth 2.0 ```
+            ### Select Flow Type
+                 ```Client Credentials with Client Secret Flow✅
+            ### Scope (optional, depends on API requirements):
+                 ```read write```     
+              Identity Provider URL it means the URL where Salesforce will request the access token. This is typically the token endpoint provided by 
+                 the API you are integrating with.
+            ### ✅ *Identity Provider URL (access token URL)*:
+                 ```https://api.company.com/oauth/token```
+        ✅ Save the External Credential. -> CompanyOAuth credential
+
+    Now Add Client ID & Secret (THIS IS THE KEY STEP)
+       - Click on "Create Principal" for the External Credential you just created and client ID and secret.
+            ### Provide Details
+            | Field              | Value                                 |
+            | ------------------ | ------------------------------------- |
+            | Token Endpoint URL | `https://api.company.com/oauth/token` |
+            | Client ID          | `abc123`                              |
+            | Client Secret      | `xyz456`                              |
+            | Scope              | `read write` (optional)               |
+
+# ✅ 🔹 Step 3: Create Named Credential
+### Go to: Setup → Named Credentials → New
+        ### Fill Details
+        * **Label**: `CompanyAPI`
+        * **Name**: `CompanyAPI`
+        * **URL**: https://api.company.com
+✅Enabled for Callouts
+    * **External Credential**: Select CompanyOAuth
+    * ✔ Generate Authorization Header
+✅ Save
+
+# ✅ ✅ Step 4: Apex Callout Example
+
+```apex
+public with sharing class CompanyAPIService {
+
+    public static void getCustomers() {
+
+        Http http = new Http();
+        HttpRequest req = new HttpRequest();
+
+        req.setEndpoint('callout:CompanyAPI/v1/customers');
+        req.setMethod('GET');
+
+        HttpResponse res = http.send(req);
+s
+        if (res.getStatusCode() == 200) {
+            System.debug('Customers: ' + res.getBody());
+        } else {
+            System.debug('Error: ' + res.getStatus());
+        }
+    }
+}
+```
+
+
+
+# ✅ ✅ Step 5: What Happens Behind the Scenes
+
+```
+Salesforce → Calls token endpoint
+→ Gets access_token
+→ Adds header:
+   Authorization: Bearer TOKEN
+→ Calls /customers API
+→ Returns response
+```
+
+✅ Fully automatic ✅ (no manual token handling)
+
+# ✅ ✅ Interview Answer
+
+> “Client Credentials flow is used for machine-to-machine integrations where no user interaction is required. In Salesforce, we configure it using External
+ Credentials with OAuth 2.0 and select Client Credentials flow. Salesforce automatically retrieves the access token using client ID and secret and uses it for API callouts without requiring manual token handling.”
+
+
+
+# 🚀 ✅ Summary
+
+✔ Client Credentials = system-level auth  
+✔ No browser / no login  
+✔ Uses client\_id + client\_secret  
+✔ Fully supported via Named Credential  
+✔ Used in real enterprise APIs (Microsoft, SAP, Stripe)
+
+
+
+✅ If you want next:
+
+* Full **Microsoft Graph working example**
+* POST API with request body (create records externally)
+* Debugging token issues (very common in real projects)

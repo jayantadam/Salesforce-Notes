@@ -1,0 +1,45 @@
+size() // 0
+isEmpty() // true
+contains(30) // true
+add(10) // [10]
+addAll(new List<Integer>{30, 40}) // [10, 30, 40]
+get(1) // 30
+set(0, 100) // [100, 30, 40]
+remove(0) // [30, 40]
+clone() // creates a copy of the list
+
+public class ListExamplesClass {
+  public void ShowNumberList(){
+     List<Integer> nums = new List<Integer>();
+    //add method
+            nums.add(10);
+            system.debug(nums); // DEBUG|(10)
+   // addAll:
+         nums.addAll(new List<Integer>{30, 40});
+         system.debug(nums); // DEBUG|(10, 30, 40)
+   // Get item:
+       	system.debug(nums[1]); // DEBUG|(30)
+   // Update item:     
+            nums[0] = 100;
+            system.debug(nums); // DEBUG|(100, 30, 40)
+    //Remove item (by index):
+        nums.remove(0);     // empty
+    //Size
+        system.debug(nums.size()); // 2
+    //isEmpty
+        system.debug(nums.isEmpty());   //false
+    //contains
+        system.debug(nums.contains(30));   // true 
+     //clone
+        List<integer>copy = nums.clone();
+            system.debug(copy);   // DEBUG|(100, 30, 40)
+      //sort
+        List<Integer> numbers = new List<Integer>{5, 2, 9, 1};
+            numbers.sort();
+          system.debug(numbers); // nums is now [1, 2, 5, 9]
+        List<String> names = new List<String>{'Zed', 'anna', 'Bob'};
+        system.debug(names);names.sort(); // Case-sensitive lexicographic: 'Bob', 'Zed', 'anna'
+
+    }    
+  
+}
